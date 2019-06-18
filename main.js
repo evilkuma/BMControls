@@ -73,6 +73,29 @@ for(var i = 0; i < verts.length; i+=6) {
   ])
 }
 
+for(var i = 0; i < planeEdges.length; i++) {
+  var edge = planeEdges[i]
+  var next = planeEdges[i === planeEdges.length - 1 ? 0 : i+1]
+
+  var points
+  if(edge[0][0] === next[0][0] && edge[0][1] === next[0][1]) {
+    points = [edge[1], ...next]
+  } else 
+  if(edge[0][0] === next[1][0] && edge[0][1] === next[1][0]) {
+    points = [edge[1], next[1], next[0]]
+  } else 
+  if(edge[1][0] === next[0][0] && edge[1][1] === next[0][1]) {
+    points = [...edge, next[1]]
+  } else {
+    points = [...edge, next[0]]
+  }
+
+  var cosin = Math.cosinByPoints(...points)
+
+  // TODO: sort by common point
+  console.log(points[1], cosin)
+}
+
 console.log(planeEdges)
 
 // raycast
