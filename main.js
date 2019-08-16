@@ -1,7 +1,20 @@
+THREE.Vector3.prototype.toFixed = function(a = 10) {
+  this.x = +this.x.toFixed(a)
+  this.y = +this.y.toFixed(a)
+  this.z = +this.z.toFixed(a)
+  return this
+}
+THREE.Vector3.prototype.abs = function() {
+  this.x = Math.abs(this.x)
+  this.y = Math.abs(this.y)
+  this.z = Math.abs(this.z)
+  return this
+}
+
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x222222)
 var camera = new THREE.PerspectiveCamera( 75, window.innerWidth/window.innerHeight, 0.1, 1000 );
-camera.position.set(-3, 8, 0/*5*/);
+camera.position.set(0, 8, 3/*5*/);
 camera.lookAt(scene.position)
 
 var renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
@@ -23,8 +36,6 @@ var animate = function () {
 
 animate();
 
-// plane
-// var geometry = new THREE.PlaneGeometry( 8, 8 );
 var points = [
   [-4, -4], [-4, 0], [-1, 0], [-1, 4], [4, 4], [4, -4]
 ]
@@ -35,14 +46,18 @@ for(var point of points) {
 }
 
 var geometry = new THREE.Shape();
+
 geometry.moveTo(...points[0]);
 for(var i = 0; i < points.length; i++)
   geometry.lineTo(...points[i]);
 geometry.lineTo(...points[0]);
+
 geometry = new THREE.ShapeGeometry(geometry);
+
 var material = new THREE.MeshPhongMaterial( { color: 0x074c24 } );
 var plane = new THREE.Mesh( geometry, material );
 plane.rotation.x = -Math.PI/2
+
 scene.add( plane );
 
 var edgesGeometry = new THREE.EdgesGeometry(geometry)
@@ -54,49 +69,28 @@ lineSegments.rotation.copy(plane.rotation)
 lineSegments.scale.copy(plane.scale)
 scene.add(lineSegments)
 
-var planeEdges = []
-var verts = edgesGeometry.attributes.position.array;
-for(var i = 0; i < verts.length; i+=6) {
-  planeEdges.push([
-    [verts[i], verts[i+1]],
-    [verts[i+3], verts[i+4]]
-    // new THREE.Vector3(
-    //   verts[i],
-    //   verts[i+1],
-    //   verts[i+2]
-    // ), 
-    // new THREE.Vector3(
-    //   verts[i+3],
-    //   verts[i+4],
-    //   verts[i+5]
-    // )
-  ])
+var planes = []
+
+for(var i = 0; i < points.length; i++) {
+  var point1 = points[i]
+  var point2 = points[i+1 === points.length ? 0 : i+1]
+  var v1 = new THREE.Vector3(point1[0], 0, -point1[1])
+  var v2 = new THREE.Vector3(point2[0], 0, -point2[1])
+  var position = v2.clone().add(v1).divideScalar(2)
+  var sub = v2.clone().sub(v1)
+  var vec = sub.clone().normalize()
+  var rvec = vec.clone().applyEuler(new THREE.Euler(0, -Math.PI/2, 0)).toFixed()
+  
+  var p = new THREE.Plane( rvec, rvec.clone().multiply(position).length() );
+
+  var from = v1.clone().multiply(vec.abs())
+  var to = v2.clone().multiply(vec.abs())
+  var max = new THREE.Vector3( Math.max(from.x, to.x), 0, Math.max(from.z, to.z) )
+  var min = new THREE.Vector3( Math.min(from.x, to.x), 0, Math.min(from.z, to.z) )
+  p.userData = { max, min, vec }
+
+  planes.push(p)
 }
-
-for(var i = 0; i < planeEdges.length; i++) {
-  var edge = planeEdges[i]
-  var next = planeEdges[i === planeEdges.length - 1 ? 0 : i+1]
-
-  var points
-  if(edge[0][0] === next[0][0] && edge[0][1] === next[0][1]) {
-    points = [edge[1], ...next]
-  } else 
-  if(edge[0][0] === next[1][0] && edge[0][1] === next[1][0]) {
-    points = [edge[1], next[1], next[0]]
-  } else 
-  if(edge[1][0] === next[0][0] && edge[1][1] === next[0][1]) {
-    points = [...edge, next[1]]
-  } else {
-    points = [...edge, next[0]]
-  }
-
-  var cosin = Math.cosinByPoints(...points)
-
-  // TODO: sort by common point
-  console.log(points[1], cosin)
-}
-
-console.log(planeEdges)
 
 // raycast
 var raycaster = new THREE.Raycaster();
@@ -139,108 +133,37 @@ function moveSelected(x, y) {
 
   raycaster.setFromCamera( mouse, camera );
   var intersect = raycaster.intersectObjects( scene.children ).find(i => i.object === plane);
-
+  
   if(intersect) {
-    var pos = fixMovePos(obj, intersect.point.x, -intersect.point.z)
-    // console.log(pos)
-    obj.position.x = pos[0]//intersect.point.x
-    obj.position.z = -pos[1]//intersect.point.z
-  }
-}
 
-function fixMovePos(obj, x, y) {
-  if(!obj.geometry.boundingBox) {
-    obj.geometry.computeBoundingBox()
-  }
+    var b = new THREE.Box3().setFromObject(obj)
+    b.min.x += intersect.point.x - obj.position.x
+    b.min.z += intersect.point.z - obj.position.z
+    b.max.x += intersect.point.x - obj.position.x
+    b.max.z += intersect.point.z - obj.position.z
 
-  var pos = [x, y]
+    for(var p of planes) {
 
-  var p_cs = [
-    [
-      x + obj.geometry.boundingBox.min.x,
-      y - obj.geometry.boundingBox.min.z
-    ],
-    [
-      x + obj.geometry.boundingBox.max.x,
-      y - obj.geometry.boundingBox.min.z
-    ],
-    [
-      x + obj.geometry.boundingBox.max.x,
-      y - obj.geometry.boundingBox.max.z
-    ],
-    [
-      x + obj.geometry.boundingBox.min.x,
-      y - obj.geometry.boundingBox.max.z
-    ]
-  ]
+      // проверка на вхождение в промежуток
+      // TODO: доработать проверку, что бы она работала по bb, а не position
+      if(
+        (obj.position.x < p.userData.max.x && obj.position.x > p.userData.min.x) ||
+        (obj.position.z < p.userData.max.z && obj.position.z > p.userData.min.z) 
+      ) {
 
-  // var edge = planeEdges[4]
+        if(b.intersectsPlane(p)) {
+          console.log('inter')
+          return
+        }
 
-  for(var edge of planeEdges) {
-
-    if(edge[0][1] === edge[1][1]) {
-      /**
-       * делаем расчет через равнобедренный треугольник с 
-       * горизонтальной гипотенузой
-       */
-      var xs = [edge[0][0], edge[1][0]].sort((i1, i2) => i1 - i2)
-      var use = (function() { 
-        for(var p_c of p_cs) if(xs[1] > p_c[0] && xs[0] < p_c[0]) 
-          return true
-        return false
-      })();
-
-      if(!use) continue
-
-      var data = []
-
-      for(var p_c of p_cs) {
-        var a, b, c, h, x, y;
-  
-        var p_a = edge[0]
-        var p_b = [
-          p_c[0]*2 - edge[0][0],
-          edge[1][1]
-        ]
-  
-        a = b = Math.sqrt(Math.pow(p_a[0] - p_c[0], 2) + Math.pow(p_a[1] - p_c[1], 2))
-        c = Math.sqrt(Math.pow(p_a[0] - p_b[0], 2) + Math.pow(p_a[1] - p_b[1], 2))
-  
-        h = Math.sqrt(Math.pow(a, 2) - Math.pow(c, 2)/4)
-  
-        x = 0
-        y = h
-
-        data.push({a, b, c, h, x, y})
       }
 
-      var onLine = +(data[0].h + data[2].h).toFixed(10) <= 
-      +(obj.geometry.boundingBox.max.z - obj.geometry.boundingBox.min.z).toFixed(10)
-
-      var step_y = Math.min(data[0].h, data[2].h)
-      var vec = step_y === data[0].h ? -1 : 1
-      
-      if(onLine) {
-        // step_y *= -1
-        pos[1] += vec*step_y
-        break;
-      }
-
-    } else if(edge[0][0] === edge[1][0]) {
-      /**
-       * делаем расчет через равнобедренный треугольник с 
-       * вертикальной гипотенузой
-       */
-      console.log(edge, '|')
-    } else {
-      /**
-       * делаем расчет через прямоугольный треугольник
-       */
-      console.log(edge, '/')
     }
 
+    obj.position.x = intersect.point.x
+    obj.position.z = intersect.point.z
+
   }
-  return pos
 }
 
 /**
@@ -278,11 +201,9 @@ function onMouseUp(e) {
   if(obj) {
     obj.mark()
     obj = null
-    markRay(e.clientX, e.clientY)// onMouseMove(e)
+    markRay(e.clientX, e.clientY)
   }
 }
-
-fixMovePos(box, 0, 0)
 
 window.addEventListener( 'mousemove', onMouseMove, false );
 window.addEventListener( 'mousedown', onMouseDown, false );

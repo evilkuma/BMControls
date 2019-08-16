@@ -19,6 +19,7 @@ function CubeMesh() {
   this.mark()
 
   this.position.y = 0.5
+  this.rotation.y = Math.PI/4
 }
 CubeMesh.prototype = Object.create(THREE.Mesh.prototype)
 CubeMesh.prototype.mark = function(color) {
