@@ -37,7 +37,9 @@ var animate = function () {
 animate();
 
 var points = [
-  [-4, -4], [-4, 0], [-1, 0], [-1, 4], [4, 4], [4, -4]
+  [-4, -4], [-4, 0], 
+  // [-1, 0], 
+  [-1, 4], [4, 4], [4, -4]
 ]
 for(var point of points) {
   var textMesh = new TextMesh(point.join(', '), 'lightgreen')
@@ -87,14 +89,15 @@ for(var i = 0; i < points.length; i++) {
   var to = v2.clone().multiply(vec.abs())
   var max = new THREE.Vector3( Math.max(from.x, to.x), 0, Math.max(from.z, to.z) )
   var min = new THREE.Vector3( Math.min(from.x, to.x), 0, Math.min(from.z, to.z) )
-  p.userData = { max, min, vec }
+  p.userData = { max, min, rvec, vec }
 
   planes.push(p)
 }
 
 // raycast
-var raycaster = new THREE.Raycaster();
-var mouse = new THREE.Vector2();
+var ray = new THREE.Ray
+var raycaster = new THREE.Raycaster
+var mouse = new THREE.Vector2
 
 const box = new CubeMesh()
 scene.add(box)
@@ -142,6 +145,8 @@ function moveSelected(x, y) {
     b.max.x += intersect.point.x - obj.position.x
     b.max.z += intersect.point.z - obj.position.z
 
+    var isReturn = false
+
     for(var p of planes) {
 
       // проверка на вхождение в промежуток
@@ -152,16 +157,43 @@ function moveSelected(x, y) {
       ) {
 
         if(b.intersectsPlane(p)) {
-          console.log('inter')
-          return
+          
+          var dir = intersect.point.clone().sub(obj.position)
+          dir.y = 0
+          dir.normalize()
+
+          ray.set(intersect.point, p.userData.rvec.clone().multiplyScalar(-1))
+
+          var pos = ray.intersectPlane(p)
+
+          if(pos) {
+            // TODO: исправить подсчет позиции для косых стен
+            var size = b.getSize(new THREE.Vector3)
+            pos.add(size.clone().divideScalar(2).multiply(p.userData.rvec))
+            
+            if(isReturn) {
+              var force = pos.clone().multiply(p.userData.rvec).toFixed(10)
+              if(force.x) obj.position.x = pos.x
+              if(force.z) obj.position.z = pos.z
+            } else {
+              obj.position.x = pos.x
+              obj.position.z = pos.z
+            }
+
+          }
+
+          isReturn = true
+
         }
 
       }
 
     }
 
-    obj.position.x = intersect.point.x
-    obj.position.z = intersect.point.z
+    if(!isReturn) {
+      obj.position.x = intersect.point.x
+      obj.position.z = intersect.point.z
+    }
 
   }
 }
