@@ -14,7 +14,7 @@ THREE.Vector3.prototype.abs = function() {
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x222222)
 var camera = new THREE.PerspectiveCamera( 75, window.innerWidth/window.innerHeight, 0.1, 1000 );
-camera.position.set(0, 8, 3/*5*/);
+camera.position.set(-8, 8, 0/*5*/);
 camera.lookAt(scene.position)
 
 var renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
@@ -71,6 +71,10 @@ lineSegments.rotation.copy(plane.rotation)
 lineSegments.scale.copy(plane.scale)
 scene.add(lineSegments)
 
+var helper = new THREE.LinesHelper
+helper.position.y = 1.1
+scene.add(helper)
+
 var planes = []
 
 for(var i = 0; i < points.length; i++) {
@@ -82,14 +86,26 @@ for(var i = 0; i < points.length; i++) {
   var sub = v2.clone().sub(v1)
   var vec = sub.clone().normalize()
   var rvec = vec.clone().applyEuler(new THREE.Euler(0, -Math.PI/2, 0)).toFixed()
+  var kvec = new THREE.Vector3()
   
-  var p = new THREE.Plane( rvec, rvec.clone().multiply(position).length() );
+  if(rvec.x !== 0) kvec.x = rvec.x > 0 ? 1 : -1
+  if(rvec.z !== 0) kvec.z = rvec.z > 0 ? 1 : -1
+  
+  var p = new THREE.Plane()// rvec, rvec.clone().multiply(position).length() );
+  p.setFromNormalAndCoplanarPoint(rvec, position)
 
   var from = v1.clone().multiply(vec.abs())
   var to = v2.clone().multiply(vec.abs())
   var max = new THREE.Vector3( Math.max(from.x, to.x), 0, Math.max(from.z, to.z) )
   var min = new THREE.Vector3( Math.min(from.x, to.x), 0, Math.min(from.z, to.z) )
-  p.userData = { max, min, rvec, vec }
+
+  var tan = (point2[1] - point1[1])/(point2[0] - point1[0])
+  var cos = Math.sqrt(1/(1+Math.pow(tan, 2)))
+  var sin = Math.sqrt(1-Math.pow(cos, 2))
+  p.userData = { max, min, rvec, kvec, vec, cos, sin }
+
+  var help = new THREE.PlaneHelper(p, 1)
+  scene.add(help)
 
   planes.push(p)
 }
@@ -121,8 +137,11 @@ function markRay(x, y) {
     }
   }
 
-  if(intersects.length && intersects[0].object instanceof CubeMesh) {
-    intersects[0].object.mark('red')
+  if(intersects.length) {
+    var mm = intersects.find(e => e.object instanceof CubeMesh)
+    if(mm) {
+      mm.object.mark('red')
+    }
   }
 }
 
@@ -138,14 +157,14 @@ function moveSelected(x, y) {
   var intersect = raycaster.intersectObjects( scene.children ).find(i => i.object === plane);
   
   if(intersect) {
-
-    var b = new THREE.Box3().setFromObject(obj)
-    b.min.x += intersect.point.x - obj.position.x
-    b.min.z += intersect.point.z - obj.position.z
-    b.max.x += intersect.point.x - obj.position.x
-    b.max.z += intersect.point.z - obj.position.z
-
+    
     var isReturn = false
+
+    var moved = intersect.point.clone().sub(obj.position)
+    moved.y = 0
+
+    var lines = obj.getCollisionLines(moved)
+    helper.setLines(lines)
 
     for(var p of planes) {
 
@@ -156,20 +175,24 @@ function moveSelected(x, y) {
         (obj.position.z < p.userData.max.z && obj.position.z > p.userData.min.z) 
       ) {
 
-        if(b.intersectsPlane(p)) {
-          
-          var dir = intersect.point.clone().sub(obj.position)
-          dir.y = 0
-          dir.normalize()
+        var isPlaneIntersects = false
+        var line
 
+        for(line of lines) {
+          isPlaneIntersects = p.intersectLine(line, new THREE.Vector3)
+          if(isPlaneIntersects) break
+        }
+        
+        if(isPlaneIntersects) {
           ray.set(intersect.point, p.userData.rvec.clone().multiplyScalar(-1))
 
           var pos = ray.intersectPlane(p)
 
           if(pos) {
-            // TODO: исправить подсчет позиции для косых стен
-            var size = b.getSize(new THREE.Vector3)
-            pos.add(size.clone().divideScalar(2).multiply(p.userData.rvec))
+
+            var size = obj.getRealSize()
+            // TODO:: определить правильную функцию для расчет смещения
+            pos.add(size.clone().divideScalar(2).multiply(p.userData.kvec))
             
             if(isReturn) {
               var force = pos.clone().multiply(p.userData.rvec).toFixed(10)
@@ -223,9 +246,12 @@ function onMouseDown(e) {
   raycaster.setFromCamera( mouse, camera );
   var intersects = raycaster.intersectObjects( scene.children );
 
-  if(intersects.length && intersects[0].object instanceof CubeMesh) {
-    obj = intersects[0].object
-    obj.mark('green')
+  if(intersects.length) {
+    var mm = intersects.find(e => e.object instanceof CubeMesh)
+    if(mm) {
+      obj = mm.object
+      obj.mark('green')
+    }
   }
 }
 

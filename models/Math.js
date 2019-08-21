@@ -13,3 +13,24 @@ Math.cosinByPoints = (A, B, C) => {
   return { sin, cos }
 
 }
+
+Math.calcRealSize = (SIZE, ROTATION, VX = 'x', VY = 'y') => {
+
+  var x = SIZE[VX]*Math.cos(ROTATION)+SIZE[VY]*Math.sin(ROTATION)
+  var y = SIZE[VX]*Math.sin(ROTATION)+SIZE[VY]*Math.cos(ROTATION)
+
+  SIZE[VX] = x
+  SIZE[VY] = y
+
+  return SIZE
+
+}
+
+Math.calcRealSizeCosSin = (SIZE, COS, SIN, VX = 'x', VY = 'y') => {
+
+  SIZE[VX] = SIZE[VX]*COS+SIZE[VY]*SIN
+  SIZE[VY] = SIZE[VY]*COS+SIZE[VX]*SIN
+
+  return SIZE
+
+}
