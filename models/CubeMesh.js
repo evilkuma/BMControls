@@ -4,7 +4,7 @@
   function CubeMesh() {
     this.constructor(
       new THREE.BoxGeometry(1, 1, 2),
-      new THREE.MeshPhongMaterial({ color: 'lightgreen' })
+      new THREE.MeshPhongMaterial({ color: 'lightgreen', transparent: true, opacity: 0.5 })
     )
 
     this.geometry.computeBoundingBox()
@@ -24,7 +24,7 @@
     this.mark()
 
     this.position.y = 0.5
-    this.rotation.y = Math.PI/4
+    this.rotation.y = Math.PI/5
 
   }
   CubeMesh.prototype = Object.create(THREE.Mesh.prototype)
