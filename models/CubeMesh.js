@@ -36,12 +36,17 @@
     }
 
   }
+  CubeMesh.prototype.getSize = function() {
+    
+    return this.userData.size
+
+  }
   CubeMesh.prototype.getRealSize = function() {
 
     return Math.calcRealSize(this.userData.size.clone(), this.rotation.y, 'x', 'z').toFixed(10)
 
   }
-  CubeMesh.prototype.getCollisionLines = function(moved) {
+  CubeMesh.prototype.toRectY = function(moved) {
 
     /**
      * 1    l   0
@@ -82,6 +87,13 @@
         point[1] += moved.z
       })
     }
+
+    return points
+
+  }
+  CubeMesh.prototype.getCollisionLines = function(moved) {
+
+    var points = this.toRectY(moved)
 
     var res = points.map((point, i) => {
       var point1 = points[i+1 >= points.length ? 0 : i+1]

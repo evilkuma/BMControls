@@ -62,6 +62,11 @@ plane.rotation.x = -Math.PI/2
 
 scene.add( plane );
 
+var floor_plane = new THREE.Plane(new THREE.Vector3(0, 1, 0))
+var floor_helper = new THREE.PlaneHelper(floor_plane, 1000)
+floor_helper.position.y = -.5
+scene.add(floor_helper)
+
 var edgesGeometry = new THREE.EdgesGeometry(geometry)
 var lineMaterial = new THREE.LineBasicMaterial({ color: 'red' })
 var lineSegments = new THREE.LineSegments(edgesGeometry, lineMaterial)
@@ -87,7 +92,7 @@ scene.add(arrow1, arrow2)
 
 var planes = []
 
-for(var i = 0; i < points.length; i++) {
+for(var i = 0; i < 1; i++) {
   var point1 = points[i]
   var point2 = points[i+1 === points.length ? 0 : i+1]
   var v1 = new THREE.Vector3(point1[0], 0, -point1[1])
@@ -106,14 +111,27 @@ for(var i = 0; i < points.length; i++) {
 
   var from = v1.clone().multiply(vec.abs())
   var to = v2.clone().multiply(vec.abs())
-  var max = new THREE.Vector3( Math.max(from.x, to.x), 0, Math.max(from.z, to.z) )
-  var min = new THREE.Vector3( Math.min(from.x, to.x), 0, Math.min(from.z, to.z) )
+  // var max = new THREE.Vector3( Math.max(from.x, to.x), 0, Math.max(from.z, to.z) )
+  // var min = new THREE.Vector3( Math.min(from.x, to.x), 0, Math.min(from.z, to.z) )
+  var max = new THREE.Vector3(
+    Math.max(point1[0], point2[0]), 0, Math.max(-point1[1], -point2[1])
+  )
+  var min = new THREE.Vector3(
+    Math.min(point1[0], point2[0]), 0, Math.min(-point1[1], -point2[1])
+  )
 
   var rot = Math.atan((point2[1] - point1[1])/(point2[0] - point1[0]))
   p.userData = { max, min, rvec, kvec, vec, rot }
 
   var help = new THREE.PlaneHelper(p, 1)
   scene.add(help)
+
+  var arrow = new THREE.ArrowHelper()
+  scene.add(arrow)
+  p.userData.arrow = arrow
+  var arrow1 = new THREE.ArrowHelper()
+  scene.add(arrow1)
+  p.userData.arrow1 = arrow1
 
   planes.push(p)
 }
@@ -192,18 +210,6 @@ function moveSelected(x, y) {
 
     // если пересечения не найдены, пропускаем проверку
     if(intersectsLines.length === 0) continue
-
-    // пускаем луч, для определния проекции мышки на плэйне в направлении стены
-    ray.set(intersect.point, p.userData.rvec.clone().multiplyScalar(-1))
-    var pos = ray.intersectPlane(p, new THREE.Vector3)
-    if(!pos) { // дополнительная проверка если вдруг мышь вышла за стену
-      ray.set(intersect.point, p.userData.rvec)
-      ray.intersectPlane(p, new THREE.Vector3)
-    }
-
-    // если точка не найдена, отменяем расчет
-    if(!pos) continue
-
     var rot = +p.userData.rot.toFixed(10)
 
     if(rot % +(Math.PI/2).toFixed(10)) {
@@ -235,7 +241,19 @@ function moveSelected(x, y) {
         intersectsData.push([p, intersect.point.clone().sub(toAdd)])
       }
 
-    } else {
+    } else {    
+      
+      // пускаем луч, для определния проекции мышки на плэйне в направлении стены
+      ray.set(intersect.point, p.userData.rvec.clone().multiplyScalar(-1))
+      var pos = ray.intersectPlane(p, new THREE.Vector3)
+      if(!pos) { // дополнительная проверка если вдруг мышь вышла за стену
+        ray.set(intersect.point, p.userData.rvec)
+        ray.intersectPlane(p, new THREE.Vector3)
+      }
+  
+      // если точка не найдена, отменяем расчет
+      if(!pos) continue
+
       // для стен под прямым углом
       // нужная позиция обьекта = точка на плэйне + половина размера обьекта по бб
       intersectsData.push([
@@ -322,7 +340,7 @@ function onMouseMove(e) {
 
   if(obj) {
     // move selected
-    moveSelected(e.clientX, e.clientY)
+    moveSelected1(e.clientX, e.clientY)
 
   } else {
     // mark ray
@@ -359,3 +377,96 @@ function onMouseUp(e) {
 window.addEventListener( 'mousemove', onMouseMove, false );
 window.addEventListener( 'mousedown', onMouseDown, false );
 window.addEventListener( 'mouseup', onMouseUp, false );
+
+
+function moveSelected1(x, y) {
+  mouse.x = ( x / window.innerWidth ) * 2 - 1;
+  mouse.y = - ( y / window.innerHeight ) * 2 + 1;
+
+  raycaster.setFromCamera( mouse, camera );
+  var intersect = raycaster.ray.intersectPlane(floor_plane, new THREE.Vector3) //intersectObjects( [plane] )[0];
+  
+  // если мышка не попала по полу, ничего не делаем
+  if(!intersect) return
+
+  intersect.y = .5
+
+  camera.position.x = intersect.x/2
+  camera.position.z = intersect.z/2
+
+  var moved = intersect.clone().sub(obj.position)
+  moved.y = 0
+
+  helper.setLines(obj.getCollisionLines(moved))
+
+  var points = obj.toRectY(moved).map(p => new THREE.Vector3(p[0], 0, p[1]))
+
+  var isMoved = false
+
+  for(var p of planes) {
+
+    ray.set(intersect, p.userData.rvec.clone().multiplyScalar(-1))
+    var pos = ray.intersectPlane(p, new THREE.Vector3)
+    
+    if(!pos) {
+      ray.set(intersect, p.userData.rvec)
+      pos = ray.intersectPlane(p, new THREE.Vector3)
+    }
+
+    // проверка на вхождение в промежуток
+    // TODO: доработать проверку, что бы она работала по bb, а не position
+    if( // если не входит в промежуток влияния плэйна, пропускаем проверку
+      ((pos.x > p.userData.max.x || pos.x < p.userData.min.x) ||
+       (pos.z > p.userData.max.z || pos.z < p.userData.min.z))
+    ) continue
+
+    var isOver = false
+
+    var over_poses = points.map(point => {
+
+      ray.set(point, p.userData.rvec)
+      var res = ray.intersectPlane(p, new THREE.Vector3)
+      if(res) isOver = true
+
+      return res
+
+    })
+
+    var idx;
+
+    if(isOver) {
+
+      var distance = 0
+      for(let i = 0; i < over_poses.length; i++) {
+        
+        if(over_poses[i]) {
+
+          var ndist = over_poses[i].distanceTo(points[i])
+          if(ndist > distance) {
+            distance = ndist
+            idx = i
+          }
+
+        }
+
+      }
+
+      var nx = intersect.x - (points[idx].x - over_poses[idx].x)
+      var nz = intersect.z - (points[idx].z - over_poses[idx].z)
+
+      obj.position.x = nx
+      obj.position.z = nz
+
+      isMoved = true
+
+    }
+    
+  }
+
+  if(!isMoved) {
+
+    obj.position.x = intersect.x
+    obj.position.z = intersect.z
+
+  }
+}
