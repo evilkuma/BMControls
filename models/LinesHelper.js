@@ -4,7 +4,7 @@
     this.constructor()
 
     this.lines = []
-    this.material = new THREE.LineBasicMaterial({color:0x0000ff})
+    this.material = new THREE.LineBasicMaterial({color:0x0000ff, linewidth: 10})
   }
   LinesHelper.prototype = Object.create(THREE.Group.prototype)
 
