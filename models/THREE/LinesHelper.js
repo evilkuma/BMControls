@@ -1,4 +1,4 @@
-(function(self) {
+define(function(require) {
 
   function LinesHelper() {
     this.constructor()
@@ -38,6 +38,6 @@
 
   }
 
-  THREE.LinesHelper = LinesHelper
+  return LinesHelper
 
-})(this)
+})

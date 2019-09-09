@@ -1,5 +1,17 @@
 
-(function(self) {
+define(function(require) {
+
+  function calcRealSize(SIZE, ROTATION, VX = 'x', VY = 'y') {
+
+    var x = SIZE[VX]*Math.cos(ROTATION)+SIZE[VY]*Math.sin(ROTATION)
+    var y = SIZE[VX]*Math.sin(ROTATION)+SIZE[VY]*Math.cos(ROTATION)
+
+    SIZE[VX] = x
+    SIZE[VY] = y
+
+    return SIZE
+
+  }
   
   function CubeMesh() {
     this.constructor(
@@ -43,7 +55,7 @@
   }
   CubeMesh.prototype.getRealSize = function() {
 
-    return Math.calcRealSize(this.userData.size.clone(), this.rotation.y, 'x', 'z').toFixed(10)
+    return calcRealSize(this.userData.size.clone(), this.rotation.y, 'x', 'z').toFixed(10)
 
   }
   CubeMesh.prototype.toRectY = function(moved) {
@@ -108,7 +120,6 @@
 
   }
 
-  // to public
-  this.CubeMesh = CubeMesh
+  return CubeMesh
 
-})(this)
+})
