@@ -61,23 +61,27 @@ define(function(require) {
     ray.set(point, p.rvec.clone().multiplyScalar(-1))
     var pos = ray.intersectPlane(p, new THREE.Vector3)
     
-    if(!pos) {
-      ray.set(point, p.rvec)
-      pos = ray.intersectPlane(p, new THREE.Vector3)
+    if(pos) {
+      // проверяем вхождение точки в зону действия плэйна
+      // когда мышь в пределах комнаты
+      if( (pos.x > p.max.x || pos.x < p.min.x) || (pos.z > p.max.z || pos.z < p.min.z) ) 
+        return false
+
+    } else {
+
+      // когда мышь за пределами комнаты
+      var angle = p.point1.angleTo(p.point2) - p.point1.angleTo(point) - p.point2.angleTo(point)
+
+      if(+angle.toFixed(10) < 0) return false
+
     }
-  
-    // дополнительно проверяем вхождение точки в зону действия плэйна
-    if(
-      ((pos.x > p.max.x || pos.x < p.min.x) ||
-       (pos.z > p.max.z || pos.z < p.min.z))
-    ) return false
   
     // ищем предельеные точки объекта, которые выходят за пределы плэйна
     var points = obj.toRectY().map(p => new THREE.Vector3(p[0], 0, p[1]))
     var isOver = false
-    var over_poses = points.map(point => {
+    var over_poses = points.map(pt => {
   
-      ray.set(point, p.rvec)
+      ray.set(pt, p.rvec)
       var res = ray.intersectPlane(p, new THREE.Vector3)
       if(res) isOver = true
   
@@ -115,11 +119,10 @@ define(function(require) {
   function moveSelected() {
     // настраиваем кастер и пуляем луч в мэш пола
     raycaster.setFromCamera( this.mouse, this.scene.camera )
-    var intersect = raycaster.intersectObject( this.room._floor )[0]
+    var intersect = raycaster.ray.intersectPlane( this.room._plane, new THREE.Vector3 )
 
     // если мимо ничего не делаем
-    if(intersect) intersect = intersect.point 
-      else return
+    if(!intersect) return
 
     // сразу перемещаем конструкцию в место мышки
     this.obj.position.x = intersect.x
@@ -131,14 +134,14 @@ define(function(require) {
     for(p of this.room._walls) {
       
       info = getFixedPos(this.obj, p, intersect)
-  
+
       if(info) break
   
     }
 
     // пересечений нет - значит все ок
     if(!info) return
-  
+
     // по полученным данным смещаем инфу о курсоре и сам объект в допустимые координаты
     intersect.x = info.point[0]
     intersect.z = info.point[1]

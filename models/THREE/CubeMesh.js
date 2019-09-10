@@ -36,7 +36,7 @@ define(function(require) {
     this.mark()
 
     this.position.y = 0.5
-    this.rotation.y = Math.PI/5
+    // this.rotation.y = Math.PI/5
 
   }
   CubeMesh.prototype = Object.create(THREE.Mesh.prototype)
