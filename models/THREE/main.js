@@ -21,5 +21,6 @@ define(function(require) {
   // THREE.Room = require('./Room')
   THREE.BMControl = require('./BMControl')
   THREE.OrbitControls = require('./OrbitControls')
+  THREE.Rectangle = require('./Rectangle')
 
 })

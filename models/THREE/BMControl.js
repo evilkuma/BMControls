@@ -77,7 +77,7 @@ define(function(require) {
     }
   
     // ищем предельеные точки объекта, которые выходят за пределы плэйна
-    var points = obj.toRectY().map(p => new THREE.Vector3(p[0], 0, p[1]))
+    var points = obj.toRectY()
     var isOver = false
     var over_poses = points.map(pt => {
   
@@ -140,7 +140,10 @@ define(function(require) {
     }
 
     // пересечений нет - значит все ок
-    if(!info) return
+    if(!info) {
+      if(this.events.onmove) this.events.onmove(this.obj, this.objects, [intersect.x, intersect.z])
+      return
+    }
 
     // по полученным данным смещаем инфу о курсоре и сам объект в допустимые координаты
     intersect.x = info.point[0]
@@ -162,7 +165,10 @@ define(function(require) {
     }
 
     // пересечений нет - значит все ок
-    if(!info1) return
+    if(!info1) {
+      if(this.events.onmove) this.events.onmove(this.obj, this.objects, info.point)
+      return
+    }
   
     // пересчитываем полученные допустимые координаты с учетом первой проверки
     var vec1 = p.rvec.clone().applyEuler(new THREE.Euler(0, Math.PI/2, 0)).toFixed(10)
@@ -202,12 +208,16 @@ define(function(require) {
     this.obj.position.x = x
     this.obj.position.z = y
 
+    if(this.events.onmove) this.events.onmove(this.obj, this.objects, [x, y])
+
   }
 
   function findObject() {
 
     raycaster.setFromCamera( this.mouse, this.scene.camera ) 
+    this.objects.forEach(e => e.visible = true)
     var intersects = raycaster.intersectObjects( this.objects )
+    this.objects.forEach(e => e.visible = false)
 
     if(intersects.length) 
       return intersects[0]
@@ -253,6 +263,24 @@ define(function(require) {
 
   }
 
+  function unselectedObject(e) {
+
+    if(e && this.ocontrol && this.ocontrol.setRotateStart) {
+      this.ocontrol.setRotateStart(new THREE.Vector2(e.clientX, e.clientY))
+    }
+
+    if(this.events.onunselected)
+      this.events.onunselected(this.obj, this.objects)
+
+    this.obj = null
+
+    if(this.ocontrol && !this.ocontrol.enabled) {
+
+      this.ocontrol.enabled = true
+      
+    }
+  }
+
   function mouseDown(e) {
 
     this.move = true
@@ -264,31 +292,24 @@ define(function(require) {
 
     if(obj) { 
 
+      if(obj.object !== this.obj && this.obj) {
+
+        unselectedObject.bind(this)(e)
+
+      }
+
       this.moveTimeout = [
         obj,
         setTimeout((function() {
-
-          this.moveTimeout = null
   
+          this.moveTimeout = null
+          
         }).bind(this), 200)
       ]
 
     } else if(this.obj) {
 
-      if(this.ocontrol && this.ocontrol.setRotateStart) {
-        this.ocontrol.setRotateStart(new THREE.Vector2(e.clientX, e.clientY))
-      }
-
-      if(this.events.onunselected)
-        this.events.onunselected(this.obj, this.objects)
-
-      this.obj = null
-
-      if(this.ocontrol && !this.ocontrol.enabled) {
-
-        this.ocontrol.enabled = true
-        
-      }
+      unselectedObject.bind(this)(e)
 
     }
 
@@ -301,7 +322,9 @@ define(function(require) {
     if(this.moveTimeout) {
       
       clearTimeout(this.moveTimeout[1])
+
       selectedObject.bind(this)(this.moveTimeout[0])
+      
       this.moveTimeout = null
 
     }

@@ -4,12 +4,12 @@ define(function(require) {
     this.constructor()
 
     this.lines = []
-    this.material = new THREE.LineBasicMaterial({color:0x0000ff, linewidth: 10})
+    this.material = new THREE.LineBasicMaterial({color:0x0000ff, linewidth: 1})
   }
   LinesHelper.prototype = Object.create(THREE.Group.prototype)
 
   LinesHelper.prototype.addLine = function(line) {
-    
+
     var geom = new THREE.Geometry
     geom.vertices.push(line.start, line.end)
 
@@ -35,6 +35,19 @@ define(function(require) {
     this.lines.forEach(line => this.removeLine(line[0]))
     this.lines = []
     lines.forEach(line => this.addLine(line))
+
+    return this
+
+  }
+
+  LinesHelper.prototype.updateMatrixWorld = function ( force ) {
+    /**
+     * Переопределенный метод из ядра THREE. Для его работы сначала вызываем
+     * 'super' метод, а потом дополняем своей логикой.
+     *  */    
+    this.constructor.prototype.updateMatrixWorld.call(this, [force])
+
+    this.children.forEach(mesh => mesh.geometry.verticesNeedUpdate = true)
 
   }
 
