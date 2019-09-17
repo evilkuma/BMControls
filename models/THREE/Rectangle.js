@@ -39,7 +39,6 @@ define(function(require) {
 
     var x, y
     if(v1[VX] === v2[VX] && v3[VX] === v4[VX]) {
-      console.log('then')
 
       x = v1[VX]
       y = v1[VY]
@@ -165,11 +164,25 @@ define(function(require) {
 
   }
 
+  Rectangle.prototype.getNearPoint = function(rect) {
+
+    var mv = rect.position.clone().sub(this.position)
+    var points2 = rect.getPoints().map(p => p.clone().add(mv))
+
+    var distances = points2.map(p => p.distanceTo(new THREE.Vector3))
+
+    return points2[distances.indexOf(Math.min(...distances))].add(this.position)
+
+  }
+
   Rectangle.prototype.cross = function(rect) {
 
-    var lines1 = this.lines
-    var lines2 = rect.getMovedLines(rect.position.clone().sub(this.position))
+    var mv = rect.position.clone().sub(this.position)
 
+    var lines1 = this.lines
+    var lines2 = rect.getMovedLines(mv)
+
+    // from helper
     this.helper.lines.forEach(line => {
       line[1].material = line[1].material.clone()
       line[1].material.color.setRGB(0, 0, 1)
@@ -179,36 +192,36 @@ define(function(require) {
       line[1].material.color.setRGB(0, 0, 1)
     })
 
-    var isCross = false
+    var crosses = [], line1, line2
 
     for(var i1 in lines1) {
 
-      var line1 = lines1[i1]
+      line1 = lines1[i1]
 
       for(var i2 in lines2) {
 
-        var line2 = lines2[i2]
+        line2 = lines2[i2]
 
-        isCross = lineCrossXZ(line1, line2)
+        var isCross = lineCrossXZ(line1, line2)
+
+        // from helper
         if(isCross) {
           this.helper.lines[i1][1].material.color.setRGB(1, 0, 0)
           rect.helper.lines[i2][1].material.color.setRGB(1, 0, 0)
-          break
+
+          crosses.push({
+            point: isCross.add(this.position),
+            line1,
+            line2
+          })
+
         }
 
       }
       
-      if(isCross) break
-
     }
 
-    if(isCross) {
-      sph.position.copy(isCross.add(this.position))
-      sph1.position.copy(line1.start.clone().add(this.position))
-      sph2.position.copy(line1.end.clone().add(this.position))
-      sph3.position.copy(line2.start.clone().add(this.position))
-      sph4.position.copy(line2.end.clone().add(this.position))
-    }
+    return crosses.length ? crosses : false
 
   }
 
