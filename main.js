@@ -7,6 +7,8 @@
 
     SCOPE = global
 
+    // SCOPE.gui = new dat.GUI();
+
     run()
   
   });
@@ -55,32 +57,55 @@
 
           if(res.length === 2) {
 
-            var point
+            var point, pos = null, v = o.position.clone().sub(obj.position).normalize()
 
-            if(res[0].line1 === res[1].line1) {
+            if(res[0].line2 === res[1].line2) {
+
+              v.multiplyScalar(-1)
+
+              // obj point in o
+              point = o.rectangle.getInsidePoint(obj.rectangle)[0]
+              
+              if(point) {
+                pos = findPointFor2(point, res[0].line2, v)
+                pos.y = 0.5
+              }
+
+            } else if(res[0].line1 === res[1].line1) {
 
               // o point in obj
-              point = obj.rectangle.getNearPoint(o.rectangle)
+              point = obj.rectangle.getInsidePoint(o.rectangle)[0]
+
+              if(point) {
+                pos = findPointFor2(point, res[0].line1, v)
+                pos.y = 0.5
+              }
 
             } else {
 
-              // obj point in o
-              point = o.rectangle.getNearPoint(obj.rectangle)
+              var point1 = obj.rectangle.getInsidePoint(o.rectangle)[0]
+              var pos1
+
+              if(point1) {
+                pos1 = findPointFor2(point, res[0].line1, v)
+                if(!pos1) pos1 = findPointFor2(point, res[1].line1, v)
+                pos.y = 0.5
+                // TODO
+              }
 
             }
 
-            var v = obj.position.clone().sub(o.position)
-            v.divide(v.clone().abs()).toFixed(10)
-            var mvTo = findPointFor2(point, res[0].point, res[1].point, v)
-
+            if(!point) return
+            
             sph.visible = true
             sph1.visible = true
             sph2.visible = true
             arrow.visible = true
 
-            sph.position.copy(point)
-            sph1.position.copy(res[0].point)
-            sph2.position.copy(res[1].point)
+            arrow.position.copy(point)
+            arrow.setDirection(v)
+
+            if(pos) sph.position.copy(pos)
 
           } else {
             
@@ -127,25 +152,16 @@
 
   }
 
-  /**
-   * Подсчеты позиции при пересечении в 2 точки 
-   * 
-   * @param {Vector3} point точка обьекта находящаяся внутри другого
-   * @param {Vector3} point1 первая точка пересечения
-   * @param {Vector3} point2 вторая точка пересечения
-   */
-  function findPointFor2(point, point1, point2, v) {
+  var ray = new THREE.Ray
 
-    var vec = point1.clone()
-                .sub(point2)
-                .normalize()
-                .applyEuler(new THREE.Euler(0, Math.PI/2, 0))
-                .abs().multiply(v)
-    
-    vec.y = 0
+  function findPointFor2(point, line1, v) {
 
-    arrow.setDirection(vec)
-    arrow.position.copy(point)
+    ray.origin.copy(point)
+    ray.direction.copy(v)
+
+    var res = ray.intersectLine2(line1, 'xz')
+
+    return res
 
   }
 

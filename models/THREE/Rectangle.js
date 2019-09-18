@@ -6,84 +6,7 @@
 define(function(require) {
 
   var helper = require('./LinesHelper')
-
-  /**
-   * наличие пересечения линий в плоскости XZ
-   */
-  function isCrossLines(v1, v2, v3, v4, VX = 'x', VY = 'y') {
-    
-    var v13 = v1.clone().sub(v3)
-    var v21 = v2.clone().sub(v1)
-    var v23 = v2.clone().sub(v3)
-    var v31 = v3.clone().sub(v1)
-    var v41 = v4.clone().sub(v1)
-    var v43 = v4.clone().sub(v3)
-
-    var ccw = (v1, v2) => v1[VX] * v2[VY] - v1[VY] * v2[VX]
-
-    return ( (ccw(v21, v31) <= 0) ^ (ccw(v21, v41) <= 0) ) &&
-           ( (ccw(v43, v23) <= 0) ^ (ccw(v43, v13) <= 0) )
-
-  }
-  
-  /**
-   * расчитывает точку пересечения 2ух прямых (не отрезков)
-   */
-  function linesCrossPoint(v1, v2, v3, v4, VX = 'x', VY = 'y') {
-
-    var K1 = (v2[VY] - v1[VY])/(v2[VX] - v1[VX])
-    var K2 = (v4[VY] - v3[VY])/(v4[VX] - v3[VX])
-
-    var B1 = (v2[VX]*v1[VY] - v1[VX]*v2[VY])/(v2[VX] - v1[VX])
-    var B2 = (v4[VX]*v3[VY] - v3[VX]*v4[VY])/(v4[VX] - v3[VX])
-
-    var x, y
-    if(v1[VX] === v2[VX] && v3[VX] === v4[VX]) {
-
-      x = v1[VX]
-      y = v1[VY]
-
-    } else if(v1[VX].toFixed(10) === v2[VX].toFixed(10)) {
-
-      x = v1[VX]
-      y = K2*x+B2
-
-    } else if(v3[VX].toFixed(10) === v4[VX].toFixed(10)) {
-
-      x = v3[VX]
-      y = K1*x+B1
-
-    } else {
-
-      x = (B2 - B1)/(K1 - K2)
-      y = K1*x+B1
-
-    }
-
-    var res = new THREE.Vector3
-
-    res[VX] = x
-    res[VY] = y
-
-    return res
-
-  }
-
-  /**
-   * точка пересечения линий в плоскости XZ
-   */
-  function lineCrossXZ(line1, line2) {
-
-    var v1 = line1.start
-    var v2 = line1.end
-    var v3 = line2.start
-    var v4 = line2.end
-
-    if(!isCrossLines(v1, v2, v3, v4, 'x', 'z')) return false
-
-    return linesCrossPoint(v1, v2, v3, v4, 'x', 'z')
-
-  }
+  var _Math = require('./../Math')
 
   function Rectangle(points) {
 
@@ -175,12 +98,56 @@ define(function(require) {
 
   }
 
-  Rectangle.prototype.cross = function(rect) {
+  Rectangle.prototype.getTriangles = function() {
+
+    var res = []
+    var points = this.getPoints()
+
+    for(var i = 0; i < 4; i++) {
+
+      var i1 = i === 3 ? 0 : i+1
+      var i2 = i1 === 3 ? 0 : i1+1
+
+      res.push([points[i], points[i1], points[i2]])
+
+    }
+
+    return res
+
+  }
+
+  Rectangle.prototype.getInsidePoint = function(rect) {
 
     var mv = rect.position.clone().sub(this.position)
+    var points2 = rect.getPoints().map(p => p.clone().add(mv))
 
-    var lines1 = this.lines
-    var lines2 = rect.getMovedLines(mv)
+    var triangles = this.getTriangles()
+    
+    var res = []
+
+    for(var point2 of points2) {
+
+      for(var triangle of triangles) {
+
+        if(_Math.pointInTriangle2(point2, ...triangle, 'x', 'z')) {
+
+          res.push(point2.add(this.position))
+          break
+
+        }
+
+      }
+
+    }
+
+    return res.length === 0 ? false : res
+
+  }
+
+  Rectangle.prototype.cross = function(rect) {
+
+    var lines1 = this.getWorldLines()
+    var lines2 = rect.getWorldLines()
 
     // from helper
     this.helper.lines.forEach(line => {
@@ -202,15 +169,15 @@ define(function(require) {
 
         line2 = lines2[i2]
 
-        var isCross = lineCrossXZ(line1, line2)
+        var isCross = _Math.lineCross2(line1, line2, 'x', 'z')
 
-        // from helper
         if(isCross) {
+          // from helper
           this.helper.lines[i1][1].material.color.setRGB(1, 0, 0)
           rect.helper.lines[i2][1].material.color.setRGB(1, 0, 0)
 
           crosses.push({
-            point: isCross.add(this.position),
+            point: isCross,
             line1,
             line2
           })
