@@ -8,6 +8,8 @@ define(function(require) {
   var helper = require('./LinesHelper')
   var _Math = require('./../Math')
 
+  var ray = new THREE.Ray
+
   function Rectangle(points) {
 
     this.position = new THREE.Vector3
@@ -189,6 +191,47 @@ define(function(require) {
     }
 
     return crosses.length ? crosses : false
+
+  }
+
+  Rectangle.prototype.getLineFromDirect = function(v) {
+  
+    ray.set(new THREE.Vector3, v)
+
+    for(var line of this.lines) {
+
+      if(ray.intersectsLine2(line, 'xz')){
+
+        this.helper.lines.find(e => e[0] === line)[1].material.color.setRGB(0, 1, 0)
+
+        return line
+
+      }
+
+    }
+
+    return false
+
+  }
+
+  Rectangle.prototype.localToWorld = function(obj) {
+
+    var res
+
+    if(obj instanceof THREE.Line3) {
+
+      res = obj.clone()
+      res.start.add(this.position)
+      res.end.add(this.position)
+
+    } else if(obj.isVector3) {
+
+      res = obj.clone().add(this.position)
+
+    } else console.error('wtf')
+
+
+    return res
 
   }
 

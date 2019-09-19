@@ -38,4 +38,17 @@ define(function(require) {
 
   }
 
+  THREE.Ray.prototype.intersectsLine2 = function(line, order = 'xy', far = 100000) {
+
+    var cross = _Math.isCrossLines2(
+      line.start, line.end, 
+      this.origin,                      // да, костыль выдан за фичу
+      this.origin.clone().add(this.direction.clone().multiplyScalar(far)),
+      order[0], order[1]
+    )
+
+    return cross
+
+  }
+
 })

@@ -45,6 +45,8 @@
     bmcontrol.events.onunselected = function(obj, objs) {
       obj.mark()
     }
+
+    var ray = new THREE.Ray
     bmcontrol.events.onmove = function(obj, objs, point) {
 
       for(let o of objs) {
@@ -55,72 +57,37 @@
 
         if(res) {
 
-          if(res.length === 2) {
+          var v = obj.position.clone().sub(o.position).normalize()
 
-            var point, pos = null, v = o.position.clone().sub(obj.position).normalize()
+          var line1 = obj.rectangle.localToWorld(obj.rectangle.getLineFromDirect(v.clone().multiplyScalar(-1)))
+          var line2 = o.rectangle.localToWorld(o.rectangle.getLineFromDirect(v))
 
-            if(res[0].line2 === res[1].line2) {
+          var p = linesExtraProj(line1, line2, v)
+          // if(!point) 
+          //   point = linesExtraProj(line2, line1, v.clone().multiplyScalar(-1))
 
-              v.multiplyScalar(-1)
 
-              // obj point in o
-              point = o.rectangle.getInsidePoint(obj.rectangle)[0]
-              
-              if(point) {
-                pos = findPointFor2(point, res[0].line2, v)
-                pos.y = 0.5
-              }
+          arrow.position.copy(obj.position)
+          arrow.setDirection(v)
+          
+          arrow.visible = true
 
-            } else if(res[0].line1 === res[1].line1) {
-
-              // o point in obj
-              point = obj.rectangle.getInsidePoint(o.rectangle)[0]
-
-              if(point) {
-                pos = findPointFor2(point, res[0].line1, v)
-                pos.y = 0.5
-              }
-
-            } else {
-
-              var point1 = obj.rectangle.getInsidePoint(o.rectangle)[0]
-              var pos1
-
-              if(point1) {
-                pos1 = findPointFor2(point, res[0].line1, v)
-                if(!pos1) pos1 = findPointFor2(point, res[1].line1, v)
-                pos.y = 0.5
-                // TODO
-              }
-
-            }
-
-            if(!point) return
-            
-            sph.visible = true
+          if(p) {
             sph1.visible = true
             sph2.visible = true
-            arrow.visible = true
+            p.y = 0.5
+            p.x += point[0]
+            p.z += point[1]
+            sph2.position.copy(p)
 
-            arrow.position.copy(point)
-            arrow.setDirection(v)
+            obj.position.x = p.x
+            obj.position.z = p.z
 
-            if(pos) sph.position.copy(pos)
+          } else console.log('watafacka')
 
-          } else {
-            
-            sph.visible = false
-            sph1.visible = false
-            sph2.visible = false
-            arrow.visible = false
-
-          }
 
         } else {
 
-          sph.visible = false
-          sph1.visible = false
-          sph2.visible = false
           arrow.visible = false
           
         }
@@ -133,16 +100,15 @@
     boxes[0].position.x = 3
     boxes[0].rotation.y = Math.PI/5
     boxes[1].position.x = -3
+    boxes[1].rotation.y = -Math.PI/1.5
 
-    window.b = boxes[0]
-
-    window.sph = new THREE.Mesh(new THREE.SphereGeometry(0.1), new THREE.MeshBasicMaterial({color: 'blue'}))
+    // window.sph = new THREE.Mesh(new THREE.SphereGeometry(0.1), new THREE.MeshBasicMaterial({color: 'blue'}))
     window.sph1 = new THREE.Mesh(new THREE.SphereGeometry(0.1), new THREE.MeshBasicMaterial({color: 'green'}))
-    window.sph2 = new THREE.Mesh(new THREE.SphereGeometry(0.1), new THREE.MeshBasicMaterial({color: 'green'}))
+    window.sph2 = new THREE.Mesh(new THREE.SphereGeometry(0.1), new THREE.MeshBasicMaterial({color: 'red'}))
     window.arrow = new THREE.ArrowHelper
-    scene.scene.add(sph, sph1, sph2, arrow)
+    scene.scene.add(arrow, sph1, sph2)
 
-    sph.visible = false
+    // sph.visible = false
     sph1.visible = false
     sph2.visible = false
     arrow.visible = false
@@ -154,14 +120,40 @@
 
   var ray = new THREE.Ray
 
-  function findPointFor2(point, line1, v) {
+  function linesExtraProj(line1, line2, v) {
 
-    ray.origin.copy(point)
-    ray.direction.copy(v)
+    var v1 = v.clone()
+    var v2 = v.clone().multiplyScalar(-1)
 
-    var res = ray.intersectLine2(line1, 'xz')
+    var fs = [
+      [line1.start, v1, line2],
+      [line1.end,   v1, line2],
+      [line2.start, v2, line1],
+      [line2.end,   v2, line1]
+    ]
 
-    return res
+    var res = fs.map(f => {
+
+      ray.direction.copy(f[1])
+      ray.origin.copy(f[0])
+
+      var pos = ray.intersectLine2(f[2], 'xz')
+      
+      if(!pos) return false
+
+      return [pos.distanceTo(f[0]), f[1] === v1 ? pos.sub(f[0]) : f[0].sub(pos)]
+
+    }).filter(el => !!el)
+
+    var dist = res[0]
+    for(var i = 1; i < res.length; i++)
+      if(res[i][0] > dist[0]) {
+
+        dist = res[i]
+
+      }
+
+    return dist[1]//.clone().multiplyScalar(dist[0])
 
   }
 
