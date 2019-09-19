@@ -215,9 +215,7 @@ define(function(require) {
   function findObject() {
 
     raycaster.setFromCamera( this.mouse, this.scene.camera ) 
-    this.objects.forEach(e => e.visible = true)
     var intersects = raycaster.intersectObjects( this.objects )
-    this.objects.forEach(e => e.visible = false)
 
     if(intersects.length) 
       return intersects[0]

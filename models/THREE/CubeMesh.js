@@ -14,7 +14,47 @@ define(function(require) {
     return SIZE
 
   }
+
+  function updateRotY(self) {
+
+    // check cache
+    if(self.userData.rectCacheRotY !== self.rotation.y) {
+      // calc rectangle
+      var l = self.userData.size.x
+      var h = self.userData.size.z
+      
+      var beta = Math.asin( (2*l*h)/(l*l+h*h) )
+      var beta1 = Math.PI - beta
+      
+      if(l < h) {
+        var tmp = beta; beta = beta1; beta1 = tmp;
+      }
   
+      var a0 = beta/2 + self.rotation.y
+      var a1 = a0 + beta1
+      var a2 = a1 + beta
+      var a3 = a2 + beta1
+  
+      var R = Math.sqrt(l*l + h*h)/2
+  
+      var points = [
+        [ R*Math.cos(a0), -R*Math.sin(a0) ],
+        [ R*Math.cos(a1), -R*Math.sin(a1) ],
+        [ R*Math.cos(a2), -R*Math.sin(a2) ],
+        [ R*Math.cos(a3), -R*Math.sin(a3) ]
+      ]
+
+      self.rectangle.setFromPoints(points)
+
+      // chached
+      self.userData.rectCacheRotY = self.rotation.y
+
+    }
+
+  }
+  
+
+
   function CubeMesh() {
     this.constructor(
       new THREE.BoxGeometry(1, 1, 2),
@@ -42,7 +82,22 @@ define(function(require) {
     this.rectangle = new Rectangle
     this.rectangle.setPosition(this.position)
 
-    this.visible = false
+    // пересчет информации про прямоугольник при повороте детали по oY
+    var self = this
+    Object.defineProperty(this.rotation, 'y', {
+      set(value) {
+
+        // get from THREE https://github.com/mrdoob/three.js/blob/master/src/math/Euler.js
+        this._y = value
+        this.onChangeCallback()
+        // add custom
+        updateRotY(self)
+
+      },
+      get() {
+        return this._y
+      }
+    })
 
   }
   CubeMesh.prototype = Object.create(THREE.Mesh.prototype)
@@ -67,55 +122,6 @@ define(function(require) {
   CubeMesh.prototype.toRectY = function() {
 
     return this.rectangle.getWorldPoints()
-
-  }
-
-  CubeMesh.prototype.updateMatrixWorld = function ( force ) {
-    /**
-     * Переопределенный метод из ядра THREE. Для его работы сначала вызываем
-     * 'super' метод, а потом дополняем своей логикой.
-     *  */    
-    this.constructor.prototype.updateMatrixWorld.call(this, [force])
-
-    if(!this.rectangle.helper.parent && this.parent) {
-
-      this.parent.add(this.rectangle.helper)
-
-    }
-
-    // check cache
-    if(this.userData.rectCacheRotY !== this.rotation.y) {
-      // calc rectangle
-      var l = this.userData.size.x
-      var h = this.userData.size.z
-      
-      var beta = Math.asin( (2*l*h)/(l*l+h*h) )
-      var beta1 = Math.PI - beta
-      
-      if(l < h) {
-        var tmp = beta; beta = beta1; beta1 = tmp;
-      }
-  
-      var a0 = beta/2 + this.rotation.y
-      var a1 = a0 + beta1
-      var a2 = a1 + beta
-      var a3 = a2 + beta1
-  
-      var R = Math.sqrt(l*l + h*h)/2
-  
-      var points = [
-        [ R*Math.cos(a0), -R*Math.sin(a0) ],
-        [ R*Math.cos(a1), -R*Math.sin(a1) ],
-        [ R*Math.cos(a2), -R*Math.sin(a2) ],
-        [ R*Math.cos(a3), -R*Math.sin(a3) ]
-      ]
-
-      this.rectangle.setFromPoints(points)
-
-      // chached
-      this.userData.rectCacheRotY = this.rotation.y
-
-    }
 
   }
 

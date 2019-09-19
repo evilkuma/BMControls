@@ -46,7 +46,6 @@
       obj.mark()
     }
 
-    var ray = new THREE.Ray
     bmcontrol.events.onmove = function(obj, objs, point) {
 
       for(let o of objs) {
@@ -63,22 +62,11 @@
           var line2 = o.rectangle.localToWorld(o.rectangle.getLineFromDirect(v))
 
           var p = linesExtraProj(line1, line2, v)
-          // if(!point) 
-          //   point = linesExtraProj(line2, line1, v.clone().multiplyScalar(-1))
-
-
-          arrow.position.copy(obj.position)
-          arrow.setDirection(v)
-          
-          arrow.visible = true
 
           if(p) {
-            sph1.visible = true
-            sph2.visible = true
-            p.y = 0.5
+
             p.x += point[0]
             p.z += point[1]
-            sph2.position.copy(p)
 
             obj.position.x = p.x
             obj.position.z = p.z
@@ -86,10 +74,6 @@
           } else console.log('watafacka')
 
 
-        } else {
-
-          arrow.visible = false
-          
         }
 
       }
@@ -102,24 +86,12 @@
     boxes[1].position.x = -3
     boxes[1].rotation.y = -Math.PI/1.5
 
-    // window.sph = new THREE.Mesh(new THREE.SphereGeometry(0.1), new THREE.MeshBasicMaterial({color: 'blue'}))
-    window.sph1 = new THREE.Mesh(new THREE.SphereGeometry(0.1), new THREE.MeshBasicMaterial({color: 'green'}))
-    window.sph2 = new THREE.Mesh(new THREE.SphereGeometry(0.1), new THREE.MeshBasicMaterial({color: 'red'}))
-    window.arrow = new THREE.ArrowHelper
-    scene.scene.add(arrow, sph1, sph2)
-
-    // sph.visible = false
-    sph1.visible = false
-    sph2.visible = false
-    arrow.visible = false
-
     scene.scene.add(...boxes)
     bmcontrol.objects.push(...boxes)
 
   }
 
   var ray = new THREE.Ray
-
   function linesExtraProj(line1, line2, v) {
 
     var v1 = v.clone()
@@ -153,7 +125,7 @@
 
       }
 
-    return dist[1]//.clone().multiplyScalar(dist[0])
+    return dist[1]
 
   }
 

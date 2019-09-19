@@ -5,7 +5,7 @@
 
 define(function(require) {
 
-  var helper = require('./LinesHelper')
+  // var helper = require('./LinesHelper')
   var _Math = require('./../Math')
 
   var ray = new THREE.Ray
@@ -18,11 +18,8 @@ define(function(require) {
     for(var i = 0; i < 4; i++) 
       this.lines.push(new THREE.Line3(new THREE.Vector3, new THREE.Vector3))
 
-    this.helper = new helper
-    this.helper.setLines(this.lines)
-
-    this.sphere = new THREE.Mesh(new THREE.SphereGeometry(0.3), new THREE.MeshBasicMaterial({color: 'red'}))
-    this.helper.add(this.sphere)
+    // this.helper = new helper
+    // this.helper.setLines(this.lines)
 
     if(points) {
 
@@ -81,11 +78,11 @@ define(function(require) {
 
     this.position = position
 
-    Object.defineProperty(this.helper, 'position', {
-      configurable: true,
-			enumerable: true,
-			value: position
-    })
+    // Object.defineProperty(this.helper, 'position', {
+    //   configurable: true,
+		// 	enumerable: true,
+		// 	value: position
+    // })
 
   }
 
@@ -151,16 +148,6 @@ define(function(require) {
     var lines1 = this.getWorldLines()
     var lines2 = rect.getWorldLines()
 
-    // from helper
-    this.helper.lines.forEach(line => {
-      line[1].material = line[1].material.clone()
-      line[1].material.color.setRGB(0, 0, 1)
-    })
-    rect.helper.lines.forEach(line => {
-      line[1].material = line[1].material.clone()
-      line[1].material.color.setRGB(0, 0, 1)
-    })
-
     var crosses = [], line1, line2
 
     for(var i1 in lines1) {
@@ -174,9 +161,6 @@ define(function(require) {
         var isCross = _Math.lineCross2(line1, line2, 'x', 'z')
 
         if(isCross) {
-          // from helper
-          this.helper.lines[i1][1].material.color.setRGB(1, 0, 0)
-          rect.helper.lines[i2][1].material.color.setRGB(1, 0, 0)
 
           crosses.push({
             point: isCross,
@@ -200,13 +184,8 @@ define(function(require) {
 
     for(var line of this.lines) {
 
-      if(ray.intersectsLine2(line, 'xz')){
-
-        this.helper.lines.find(e => e[0] === line)[1].material.color.setRGB(0, 1, 0)
-
+      if(ray.intersectsLine2(line, 'xz'))
         return line
-
-      }
 
     }
 
