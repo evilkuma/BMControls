@@ -5,43 +5,23 @@ define(function(require) {
   var raycaster = new THREE.Raycaster
   var ray = new THREE.Ray
 
-  function BMControl({ scene, points = [], dom = document.body, ocontrol } = {}) {
 
-    this.room = new Room(points)
-    this.objects = []
-    this.events = {}
-    this.obj = null
-    this.move = false
-    this.mouse = new THREE.Vector2
-    this.scene = scene
-    this.ocontrol = ocontrol
+  /**
+   * Ищет 3д обьект для взаимодействия
+   * 
+   * @param {BMControl} self 
+   * 
+   * @returns Object - info about object | false
+   */
+  function findObject(self) {
 
-    var events = {
-      mouseMove: mouseMove.bind(this),
-      mouseDown: mouseDown.bind(this),
-      mouseUp: mouseUp.bind(this)
-    }
+    raycaster.setFromCamera( self.mouse, self.scene.camera ) 
+    var intersects = raycaster.intersectObjects( self.objects )
 
-    this.enable = function(bool) {
+    if(intersects.length) 
+      return intersects[0]
 
-      var func = bool ? 'addEventListener' : 'removeEventListener'
-
-      dom[func]('mousemove', events.mouseMove)
-      dom[func]('mousedown', events.mouseDown)
-      dom[func]('mouseup', events.mouseUp)
-
-      return this
-
-    }
-
-    this.enable(true)
-
-    /**
-     * если кнопка мыши была поднята в течении
-     * некоторого времени, то выделяем обьект,
-     * иначе работает orbit
-     */
-    this.moveTimeout = null
+    return false
 
   }
 
@@ -116,24 +96,29 @@ define(function(require) {
 
   }
 
-  function moveSelected() {
+  /**
+   * Расчет передвижения обьекта
+   * 
+   * @param {BMControl} self 
+   */
+  function moveSelected(self) {
     // настраиваем кастер и пуляем луч в мэш пола
-    raycaster.setFromCamera( this.mouse, this.scene.camera )
-    var intersect = raycaster.ray.intersectPlane( this.room._plane, new THREE.Vector3 )
+    raycaster.setFromCamera( self.mouse, self.scene.camera )
+    var intersect = raycaster.ray.intersectPlane( self.room._plane, new THREE.Vector3 )
 
     // если мимо ничего не делаем
     if(!intersect) return
 
     // сразу перемещаем конструкцию в место мышки
-    this.obj.position.x = intersect.x
-    this.obj.position.z = intersect.z
+    self.obj.position.x = intersect.x
+    self.obj.position.z = intersect.z
 
     // ищем первое пересчение и записываем о нем инфу
     var info = null, p
 
-    for(p of this.room._walls) {
+    for(p of self.room._walls) {
       
-      info = getFixedPos(this.obj, p, intersect)
+      info = getFixedPos(self.obj, p, intersect)
 
       if(info) break
   
@@ -141,24 +126,24 @@ define(function(require) {
 
     // пересечений нет - значит все ок
     if(!info) {
-      if(this.events.onmove) this.events.onmove(this.obj, this.objects, [intersect.x, intersect.z])
+      if(self.events.onmove) self.events.onmove(self.obj, self.objects, [intersect.x, intersect.z])
       return
     }
 
     // по полученным данным смещаем инфу о курсоре и сам объект в допустимые координаты
     intersect.x = info.point[0]
     intersect.z = info.point[1]
-    this.obj.position.x = info.point[0]
-    this.obj.position.z = info.point[1]
+    self.obj.position.x = info.point[0]
+    self.obj.position.z = info.point[1]
 
     // ищем второе пересчение и записываем о нем инфу
     var info1 = null, p1
 
-    for(p1 of this.room._walls) {
+    for(p1 of self.room._walls) {
       // исключаем из поиска исправленое пересечение
       if(p1 === p) continue
   
-      info1 = getFixedPos(this.obj, p1, intersect)
+      info1 = getFixedPos(self.obj, p1, intersect)
   
       if(info1) break
   
@@ -166,87 +151,71 @@ define(function(require) {
 
     // пересечений нет - значит все ок
     if(!info1) {
-      if(this.events.onmove) this.events.onmove(this.obj, this.objects, info.point)
+      if(self.events.onmove) self.events.onmove(self.obj, self.objects, info.point)
       return
     }
   
-    // пересчитываем полученные допустимые координаты с учетом первой проверки
+    // пересчитываем полученные допустимые координаты с учетом первой проверки    
     var vec1 = p.rvec.clone().applyEuler(new THREE.Euler(0, Math.PI/2, 0)).toFixed(10)
     var vec2 = p1.rvec.clone().applyEuler(new THREE.Euler(0, Math.PI/2, 0)).toFixed(10)
   
-    var f11 = new THREE.Vector3(info.point[0], 0, info.point[1])
-    var f12 = f11.clone().add(vec1.clone().multiplyScalar(10))
-    var f21 = new THREE.Vector3(info1.point[0], 0, info1.point[1])
-    var f22 = f21.clone().add(vec2.clone().multiplyScalar(10))
+    ray.origin.set(info.point[0], 0, info.point[1])
+    ray.direction.copy(vec1)
+    var pos = ray.intersectVec2(vec2, new THREE.Vector3(info1.point[0], 0, info1.point[1]), 'xz')
   
-    var K1 = (f12.z - f11.z)/(f12.x - f11.x)
-    var K2 = (f22.z - f21.z)/(f22.x - f21.x)
-  
-    var B1 = (f12.x*f11.z - f11.x*f12.z)/(f12.x - f11.x)
-    var B2 = (f22.x*f21.z - f21.x*f22.z)/(f22.x - f21.x)
-  
-    var x, y
-  
-    // условие для обработки стен, который направлены по оси Z
-    if((p.rot + Math.PI) % Math.PI === Math.PI/2) {
-  
-      x = info.point[0]
-      y = K2*x+B2
-  
-    } else if((p1.rot + Math.PI) % Math.PI === Math.PI/2) {
-  
-      x = info1.point[0]
-      y = K1*x+B1
-  
-    } else {
-  
-      x = (B2 - B1)/(K1 - K2)
-      y = K1*x+B1
-  
+    self.obj.position.x = pos.x
+    self.obj.position.z = pos.z
+
+    if(self.events.onmove) self.events.onmove(self.obj, self.objects, [pos.x, pos.z])
+
+  }
+
+
+  /**
+   * exorted Class BMControl
+   */
+
+  function BMControl({ scene, points = [], dom = document.body, ocontrol } = {}) {
+
+    this.room = new Room(points)
+    this.objects = []
+    this.events = {}
+    this.obj = null
+    this.move = false
+    this.mouse = new THREE.Vector2
+    this.scene = scene
+    this.ocontrol = ocontrol
+
+    var events = {
+      mouseMove: mouseMove.bind(this),
+      mouseDown: mouseDown.bind(this),
+      mouseUp: mouseUp.bind(this)
     }
-  
-    this.obj.position.x = x
-    this.obj.position.z = y
 
-    if(this.events.onmove) this.events.onmove(this.obj, this.objects, [x, y])
+    this.enable = function(bool) {
 
-  }
+      var func = bool ? 'addEventListener' : 'removeEventListener'
 
-  function findObject() {
+      dom[func]('mousemove', events.mouseMove)
+      dom[func]('mousedown', events.mouseDown)
+      dom[func]('mouseup', events.mouseUp)
 
-    raycaster.setFromCamera( this.mouse, this.scene.camera ) 
-    var intersects = raycaster.intersectObjects( this.objects )
-
-    if(intersects.length) 
-      return intersects[0]
-
-    return false
-
-  }
-
-  function mouseMove(e) {
-
-    this.mouse.x = (e.clientX / window.innerWidth ) * 2 - 1
-    this.mouse.y = - ( e.clientY / window.innerHeight ) * 2 + 1;
-
-    if(this.obj) {
-
-      if(!this.move) return
-
-      moveSelected.bind(this)()
-
-    } else {
-
-      var obj = findObject.bind(this)()
-      
-      if(this.events.onview)
-        this.events.onview(obj, this.objects)
+      return this
 
     }
 
+    this.enable(true)
+
+    /**
+     * если кнопка мыши была поднята в течении
+     * некоторого времени, то выделяем обьект,
+     * иначе работает orbit
+     */
+    this.moveTimeout = null
+
   }
 
-  function selectedObject(obj) {
+  BMControl.prototype.selectedObject = function(obj) {
 
     if(this.ocontrol && this.ocontrol.enabled) {
 
@@ -259,12 +228,12 @@ define(function(require) {
     if(this.events.onselected)
       this.events.onselected(obj, this.objects)
 
-  }
+  };
 
-  function unselectedObject(e) {
+  BMControl.prototype.unselectedObject = function(resetOControl) {
 
-    if(e && this.ocontrol && this.ocontrol.setRotateStart) {
-      this.ocontrol.setRotateStart(new THREE.Vector2(e.clientX, e.clientY))
+    if(resetOControl && this.ocontrol && this.ocontrol.setRotateStart) {
+      this.ocontrol.setRotateStart(new THREE.Vector2(...resetOControl))
     }
 
     if(this.events.onunselected)
@@ -277,8 +246,38 @@ define(function(require) {
       this.ocontrol.enabled = true
       
     }
+
+  };
+
+
+  /**
+   * Event on dom
+   */
+  function mouseMove(e) {
+
+    this.mouse.x = (e.clientX / window.innerWidth ) * 2 - 1
+    this.mouse.y = - ( e.clientY / window.innerHeight ) * 2 + 1;
+
+    if(this.obj) {
+
+      if(!this.move) return
+
+      moveSelected(this)
+
+    } else {
+
+      var obj = findObject(this)
+      
+      if(this.events.onview)
+        this.events.onview(obj, this.objects)
+
+    }
+
   }
 
+  /**
+   * Event on dom
+   */
   function mouseDown(e) {
 
     this.move = true
@@ -286,13 +285,13 @@ define(function(require) {
     this.mouse.x = (e.clientX / window.innerWidth ) * 2 - 1
     this.mouse.y = - ( e.clientY / window.innerHeight ) * 2 + 1;
     
-    var obj = findObject.bind(this)()
+    var obj = findObject(this)
 
     if(obj) { 
 
       if(obj.object !== this.obj && this.obj) {
 
-        unselectedObject.bind(this)(e)
+        this.unselectedObject([e.clientX, e.clientY])
 
       }
 
@@ -307,12 +306,15 @@ define(function(require) {
 
     } else if(this.obj) {
 
-      unselectedObject.bind(this)(e)
+      this.unselectedObject([e.clientX, e.clientY])
 
     }
 
   }
 
+  /**
+   * Event on dom
+   */
   function mouseUp(e) {
 
     this.move = false
@@ -321,7 +323,7 @@ define(function(require) {
       
       clearTimeout(this.moveTimeout[1])
 
-      selectedObject.bind(this)(this.moveTimeout[0])
+      this.selectedObject(this.moveTimeout[0])
       
       this.moveTimeout = null
 
@@ -329,6 +331,7 @@ define(function(require) {
 
   }
 
+  //export
   return BMControl
 
 })

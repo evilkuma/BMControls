@@ -51,4 +51,15 @@ define(function(require) {
 
   }
 
+  THREE.Ray.prototype.intersectVec2 = function(vec, pos = new THREE.Vector3, order = 'xy') {
+
+    var f11 = this.origin
+    var f12 = f11.clone().add(this.direction.clone().multiplyScalar(10))
+    var f21 = pos.clone()
+    var f22 = f21.clone().add(vec.clone().multiplyScalar(10))
+
+    return _Math.linesCrossPoint2(f11, f12, f21, f22, order[0], order[1])
+
+  }
+
 })
