@@ -98,6 +98,7 @@ define(function(require) {
         return this._y
       }
     })
+    updateRotY(this)
 
   }
   CubeMesh.prototype = Object.create(THREE.Mesh.prototype)

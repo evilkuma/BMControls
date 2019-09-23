@@ -48,43 +48,65 @@
 
     bmcontrol.events.onmove = function(obj, objs, point) {
 
-      for(let o of objs) {
+      var iter = 0
 
-        if(o === obj) continue
+      while(true) {
+        iter++
 
-        var res = obj.rectangle.cross(o.rectangle)
+        var res = null, o1
 
-        if(res) {
+        for(o1 of objs) {
 
-          var v = obj.position.clone().sub(o.position).normalize()
+          if(o1 === obj) continue
 
-          var line1 = obj.rectangle.localToWorld(obj.rectangle.getLineFromDirect(v.clone().multiplyScalar(-1)))
-          var line2 = o.rectangle.localToWorld(o.rectangle.getLineFromDirect(v))
+          res = getFixedPos(obj, o1, point)
 
-          var p = linesExtraProj(line1, line2, v)
+          if(res) break
 
-          if(p) {
+        }
 
-            p.x += point[0]
-            p.z += point[1]
+        if(!res) {
+          return
+        }
 
-            obj.position.x = p.x
-            obj.position.z = p.z
+        var res1 = null, o2
 
-          } else console.log('watafacka')
+        for(o2 of objs) {
+
+          if(o2 === obj || o2 === o1) continue
+
+          res1 = getFixedPos(obj, o2, point)
+
+          if(res1) break
+
+        }
+
+        if(!res1) {
+          
+          obj.position.x = res.point.x
+          obj.position.z = res.point.z
+         
+          return
+        }
 
 
+        // TODO: дописать мерж 2ух пересечений
+
+
+        if(iter > 10) {
+          console.warn('iterible', iter)
+          return
         }
 
       }
 
     }
     
-    var boxes = [new THREE.CubeMesh, new THREE.CubeMesh]
+    var boxes = [new THREE.CubeMesh, new THREE.CubeMesh, new THREE.CubeMesh]
     boxes[0].position.x = 3
-    boxes[0].rotation.y = Math.PI/5
+    boxes[0].rotation.y = Math.PI/4
     boxes[1].position.x = -3
-    boxes[1].rotation.y = -Math.PI/1.5
+    // boxes[1].rotation.y = Math.PI/4
 
     scene.scene.add(...boxes)
     bmcontrol.objects.push(...boxes)
@@ -113,7 +135,7 @@
       
       if(!pos) return false
 
-      return [pos.distanceTo(f[0]), f[1] === v1 ? pos.sub(f[0]) : f[0].sub(pos)]
+      return [pos.distanceTo(f[0]), f[1] === v1 ? pos.sub(f[0]) : f[0].clone().sub(pos)]
 
     }).filter(el => !!el)
 
@@ -126,6 +148,40 @@
       }
 
     return dist[1]
+
+  }
+
+  function getFixedPos(obj, o, point) {
+
+    var res = obj.rectangle.cross(o.rectangle)
+    if(!res) return false
+
+    var v = obj.position.clone().sub(o.position).normalize()
+
+    var line1 = obj.rectangle.localToWorld(
+      obj.rectangle.getLineFromDirect(v.clone().multiplyScalar(-1))
+    )
+    var line2 = o.rectangle.localToWorld(
+      o.rectangle.getLineFromDirect(v)
+    )
+
+    var v1 = line1.end.clone().sub(line1.start).divideScalar(2).add(line1.start)
+              .sub(obj.rectangle.position).normalize()
+    var v2 = line2.end.clone().sub(line2.start).divideScalar(2).add(line2.start)
+              .sub(o.rectangle.position).normalize()
+    
+    var p = linesExtraProj(line1, line2, v)
+    if(!p) return false
+
+    p.x += point[0]
+    p.z += point[1]
+    //add дополнительный отступ, что бы не было пересечения
+    p.add(v.clone().multiplyScalar(.001))
+
+    return {
+      point: p,
+      v1, v2
+    }
 
   }
 
