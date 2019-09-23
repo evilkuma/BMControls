@@ -130,43 +130,61 @@ define(function(require) {
       return
     }
 
-    // по полученным данным смещаем инфу о курсоре и сам объект в допустимые координаты
-    intersect.x = info.point[0]
-    intersect.z = info.point[1]
-    self.obj.position.x = info.point[0]
-    self.obj.position.z = info.point[1]
+    var info1 = null, p1, iter = 0
 
-    // ищем второе пересчение и записываем о нем инфу
-    var info1 = null, p1
+    while(true) {
 
-    for(p1 of self.room._walls) {
-      // исключаем из поиска исправленое пересечение
-      if(p1 === p) continue
-  
-      info1 = getFixedPos(self.obj, p1, intersect)
-  
-      if(info1) break
-  
+      intersect.x = info.point[0]
+      intersect.z = info.point[1]
+      self.obj.position.x = info.point[0]
+      self.obj.position.z = info.point[1]
+
+      for(p1 of self.room._walls) {
+        // исключаем из поиска исправленое пересечение
+        if(p1 === p) continue
+    
+        info1 = getFixedPos(self.obj, p1, intersect)
+    
+        if(info1) break
+    
+      }
+
+      if(!info1) {
+        if(self.events.onmove) self.events.onmove(self.obj, self.objects, info.point)
+        return
+      }
+
+      var vec1 = p.rvec.clone().applyEuler(new THREE.Euler(0, Math.PI/2, 0))//.toFixed(10)
+      var vec2 = p1.rvec.clone().applyEuler(new THREE.Euler(0, Math.PI/2, 0))//.toFixed(10)
+
+      ray.origin.set(info.point[0], 0, info.point[1])
+        .add(p.rvec.clone().multiplyScalar(.001)) 
+        // add дополнительный отступ, что бы не было пересечения
+      ray.direction.copy(vec1)
+      var pos = ray.intersectVec2(
+        vec2, 
+        new THREE.Vector3(info1.point[0], 0, info1.point[1])
+          .add(p1.rvec.clone().multiplyScalar(.001)), 
+          // add дополнительный отступ, что бы не было пересечения
+        'xz'
+      )
+
+      info1.point[0] = pos.x
+      info1.point[1] = pos.z
+
+      info = info1
+      p = p1
+
+      iter++
+
+      if(iter > 10) {
+
+        console.warn('iterible', info1)
+        return false
+
+      }
+
     }
-
-    // пересечений нет - значит все ок
-    if(!info1) {
-      if(self.events.onmove) self.events.onmove(self.obj, self.objects, info.point)
-      return
-    }
-  
-    // пересчитываем полученные допустимые координаты с учетом первой проверки    
-    var vec1 = p.rvec.clone().applyEuler(new THREE.Euler(0, Math.PI/2, 0)).toFixed(10)
-    var vec2 = p1.rvec.clone().applyEuler(new THREE.Euler(0, Math.PI/2, 0)).toFixed(10)
-  
-    ray.origin.set(info.point[0], 0, info.point[1])
-    ray.direction.copy(vec1)
-    var pos = ray.intersectVec2(vec2, new THREE.Vector3(info1.point[0], 0, info1.point[1]), 'xz')
-  
-    self.obj.position.x = pos.x
-    self.obj.position.z = pos.z
-
-    if(self.events.onmove) self.events.onmove(self.obj, self.objects, [pos.x, pos.z])
 
   }
 
