@@ -6,8 +6,8 @@ define(function(require) {
     this.scene = new THREE.Scene
     this.scene.background = new THREE.Color(0x222222)
 
-    this.camera = new THREE.PerspectiveCamera( 75, element.clientWidth/element.clientHeight, 0.1, 1000 )
-    this.camera.position.set(0, 12, 0)
+    this.camera = new THREE.PerspectiveCamera( 75, element.clientWidth/element.clientHeight, 0.1, 1000000 )
+    this.camera.position.set(0, 1200, 0)
     this.camera.lookAt(this.scene.position)
 
     this.renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
@@ -18,8 +18,8 @@ define(function(require) {
 
     this.scene.add(new THREE.AmbientLight( 0x404040, 0.7 ))
 
-    var light = new THREE.PointLight( 0xffffff, 0.7, 10 );
-    light.position.set(0, 4, 0)
+    var light = new THREE.PointLight( 0xffffff, 0.7, 10000 );
+    light.position.set(0, 400, 0)
     this.scene.add( light );
 
     // --------------

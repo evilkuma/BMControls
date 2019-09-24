@@ -57,7 +57,7 @@ define(function(require) {
 
   function CubeMesh() {
     this.constructor(
-      new THREE.BoxGeometry(1, 1, 2),
+      new THREE.BoxGeometry(100, 100, 200),
       new THREE.MeshPhongMaterial({ color: 'lightgreen', transparent: true, opacity: 0.5 })
     )
 
@@ -77,7 +77,7 @@ define(function(require) {
     this.add(mark)
     this.mark()
 
-    this.position.y = 0.5
+    this.position.y = 50
 
     this.rectangle = new Rectangle
     this.rectangle.setPosition(this.position)

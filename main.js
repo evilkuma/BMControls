@@ -24,11 +24,11 @@
     bmcontrol = new THREE.BMControl({
       scene,
       points: [
-        new THREE.Vector3(-8, 0, 8),
-        new THREE.Vector3(-6, 0, -2),
-        new THREE.Vector3(0,  0, -8),
-        new THREE.Vector3(8,  0, -8),
-        new THREE.Vector3(8,  0, 8)
+        new THREE.Vector3(-800, 0, 800),
+        new THREE.Vector3(-600, 0, -200),
+        new THREE.Vector3(0,  0, -800),
+        new THREE.Vector3(800,  0, -800),
+        new THREE.Vector3(800,  0, 800)
       ],
       ocontrol
     })
@@ -48,52 +48,50 @@
 
     bmcontrol.events.onmove = function(obj, objs, point) {
 
-      var iter = 0
+      obj.position.x = point[0]
+      obj.position.z = point[1]
+
+      var info = null, o
+
+      for(o of objs) {
+
+        if(o === obj) continue
+
+        info = getFixedPos(obj, o, point)
+
+        if(info) break
+
+      }
+
+      if(!info) return
+
+      var info1 = null, o1, iter = 0
 
       while(true) {
-        iter++
 
-        var res = null, o1
+        point[0] = info.point.x
+        point[1] = info.point.z
+        obj.position.x = info.point.x
+        obj.position.z = info.point.z
 
         for(o1 of objs) {
 
-          if(o1 === obj) continue
+          if(o1 === obj || o1 === o) continue
 
-          res = getFixedPos(obj, o1, point)
+          info1 = getFixedPos(obj, o1, point)
 
-          if(res) break
-
-        }
-
-        if(!res) {
-          return
-        }
-
-        var res1 = null, o2
-
-        for(o2 of objs) {
-
-          if(o2 === obj || o2 === o1) continue
-
-          res1 = getFixedPos(obj, o2, point)
-
-          if(res1) break
+          if(info1) break
 
         }
 
-        if(!res1) {
-          
-          obj.position.x = res.point.x
-          obj.position.z = res.point.z
-         
-          return
-        }
+        if(!info1) return
 
+        info = info1
+        o = o1
 
-        // TODO: дописать мерж 2ух пересечений
+        iter++
 
-
-        if(iter > 10) {
+        if(iter > 100) {
           console.warn('iterible', iter)
           return
         }
@@ -103,9 +101,9 @@
     }
     
     var boxes = [new THREE.CubeMesh, new THREE.CubeMesh, new THREE.CubeMesh]
-    boxes[0].position.x = 3
+    boxes[0].position.x = 300
     boxes[0].rotation.y = Math.PI/4
-    boxes[1].position.x = -3
+    boxes[1].position.x = -300
     // boxes[1].rotation.y = Math.PI/4
 
     scene.scene.add(...boxes)
@@ -165,22 +163,17 @@
       o.rectangle.getLineFromDirect(v)
     )
 
-    var v1 = line1.end.clone().sub(line1.start).divideScalar(2).add(line1.start)
-              .sub(obj.rectangle.position).normalize()
-    var v2 = line2.end.clone().sub(line2.start).divideScalar(2).add(line2.start)
-              .sub(o.rectangle.position).normalize()
-    
     var p = linesExtraProj(line1, line2, v)
     if(!p) return false
 
     p.x += point[0]
+    p.y = 0
     p.z += point[1]
     //add дополнительный отступ, что бы не было пересечения
     p.add(v.clone().multiplyScalar(.001))
 
     return {
-      point: p,
-      v1, v2
+      point: p
     }
 
   }

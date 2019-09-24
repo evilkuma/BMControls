@@ -13,6 +13,11 @@ define(function(require) {
     this.z = Math.abs(this.z)
     return this
   }
+  THREE.Vector3.prototype.collinear = function(v) {
+    if(this.x/v.x !== this.y/v.y) return false
+    if(this.x/v.x !== this.z/v.z) return false
+    return true
+  }
 
   THREE.CubeMesh = require('./CubeMesh')
   THREE.LinesHelper = require('./LinesHelper')
