@@ -25,74 +25,259 @@ define(function(require) {
 
   }
 
-  /**
-   * Проверяет пересечение и расчитывает допустимое положение объкта по отношению
-   * к плэйну.
-   * 
-   * @param {CubeMesh} obj - проверяемый объект 
-   * @param {Wall} p - проверяемый плэйн 
-   * @param {Vector3} point - позиция передвижения 
-   * 
-   * @returns { point: [ x, z ] } || false
-   */
-  function getFixedPos(obj, p, point) {
+  function linesExtraProj(line1, line2, v) {
 
-    // ищем проецкию позицию передвижения на плэйн
-    ray.set(point, p.rvec.clone().multiplyScalar(-1))
-    var pos = ray.intersectPlane(p, new THREE.Vector3)
-    
-    if(pos) {
-      // проверяем вхождение точки в зону действия плэйна
-      // когда мышь в пределах комнаты
-      if( (pos.x > p.max.x || pos.x < p.min.x) || (pos.z > p.max.z || pos.z < p.min.z) ) 
-        return false
+    var v1 = v.clone()
+    var v2 = v.clone().multiplyScalar(-1)
 
-    } else {
+    var fs = [
+      [line1.start, v1, line2],
+      [line1.end,   v1, line2],
+      [line2.start, v2, line1],
+      [line2.end,   v2, line1]
+    ]
 
-      // когда мышь за пределами комнаты
-      var angle = p.point1.angleTo(p.point2) - p.point1.angleTo(point) - p.point2.angleTo(point)
+    var res = fs.map(f => {
 
-      if(+angle.toFixed(10) < 0) return false
+      ray.direction.copy(f[1])
+      ray.origin.copy(f[0])
 
+      var pos = ray.intersectLine2(f[2], 'xz')
+      
+      if(!pos) return false
+
+      return [pos.distanceTo(f[0]), f[1] === v1 ? pos.sub(f[0]) : f[0].clone().sub(pos)]
+
+    }).filter(el => !!el)
+
+    var dist = res[0]
+    for(var i = 1; i < res.length; i++)
+      if(res[i][0] > dist[0]) {
+
+        dist = res[i]
+
+      }
+
+    return dist[1]
+
+  }
+
+  function getFixedPos(obj, o, point) {
+
+    var res = obj.rectangle.cross(o.rectangle)
+    if(!res) return false
+
+    var v = obj.position.clone().sub(o.position).normalize()
+
+    var line1 = obj.rectangle.localToWorld(
+      obj.rectangle.getLineFromDirect(v.clone().multiplyScalar(-1))
+    )
+    var line2 = o.rectangle.localToWorld(
+      o.rectangle.getLineFromDirect(v)
+    )
+
+    var p = linesExtraProj(line1, line2, v)
+    if(!p) return false
+
+    p.x += point.x
+    p.y = 0
+    p.z += point.z
+    //add дополнительный отступ, что бы не было пересечения
+    p.add(v.clone().multiplyScalar(.001))
+
+    return {
+      point: p
     }
+
+  }
+
+
+  function fixWallObj(self, intersect) {
+
+    var o_info = null, o_p = null, info = null, p = null, iter = -1
+
+    while(true) {
+
+      iter++
+
+      if(o_info) {
+
+        intersect.x = o_info.point[0]
+        intersect.z = o_info.point[1]
+        self.obj.position.x = o_info.point[0]
+        self.obj.position.z = o_info.point[1]
+
+      }
+
+      info = null
+
+      for(p of self.room._walls) {
+
+        if(p === o_p) continue
+
+        // info = getFixedPos(self.obj, p, intersect)
+
+        // ищем проецкию позицию передвижения на плэйн
+        ray.set(intersect, p.rvec.clone().multiplyScalar(-1))
+        var pos = ray.intersectPlane(p, new THREE.Vector3)
+
+        if(pos) {
+          // проверяем вхождение точки в зону действия плэйна
+          // когда мышь в пределах комнаты
+          if( (pos.x > p.max.x || pos.x < p.min.x) || (pos.z > p.max.z || pos.z < p.min.z) ) 
+            continue
+    
+        } else {
+    
+          // когда мышь за пределами комнаты
+          var angle = p.point1.angleTo(p.point2) - p.point1.angleTo(intersect) - p.point2.angleTo(intersect)
+    
+          if(+angle.toFixed(10) < 0) continue
+
+        }
+
+        // ищем предельеные точки объекта, которые выходят за пределы плэйна
+        var points = self.obj.toRectY()
+        var isOver = false
+        var over_poses = points.map(pt => {
+      
+          ray.set(pt, p.rvec)
+          var res = ray.intersectPlane(p, new THREE.Vector3)
+          if(res) isOver = true
+      
+          return res
+      
+        })
+
+        // если нет точки вышелшей за пределы - все ок
+        if(!isOver) continue
+
+        // находим точку дальше всего выходящую за пределы плэйна
+        var idx, distance = 0
+        for(let i = 0; i < over_poses.length; i++) {
+
+          if(!over_poses[i]) continue
+
+          var ndist = over_poses[i].distanceTo(points[i])
+          if(ndist >= distance) {
+            distance = ndist
+            idx = i
+          }
+
+        }
+
+        // подсчитываем допустимые координаты
+        var nx = intersect.x - (points[idx].x - over_poses[idx].x)
+        var nz = intersect.z - (points[idx].z - over_poses[idx].z)
+
+        info = { point: [nx, nz] }
+        
+        break
   
-    // ищем предельеные точки объекта, которые выходят за пределы плэйна
-    var points = obj.toRectY()
-    var isOver = false
-    var over_poses = points.map(pt => {
-  
-      ray.set(pt, p.rvec)
-      var res = ray.intersectPlane(p, new THREE.Vector3)
-      if(res) isOver = true
-  
-      return res
-  
-    })
-  
-    // если нет точки вышелшей за пределы - все ок
-    if(!isOver) return false
-  
-    // находим точку дальше всего выходящую за пределы плэйна
-    var idx, distance = 0
-    for(let i = 0; i < over_poses.length; i++) {
-  
-      if(!over_poses[i]) continue
-  
-      var ndist = over_poses[i].distanceTo(points[i])
-      if(ndist >= distance) {
-        distance = ndist
-        idx = i
       }
   
-    }
+      if(!info) break
   
-    // подсчитываем допустимые координаты
-    var nx = point.x - (points[idx].x - over_poses[idx].x)
-    var nz = point.z - (points[idx].z - over_poses[idx].z)
-  
-    return {
-      point: [nx, nz]
+      if(!o_info) {
+
+        o_info = info
+        o_p = p
+
+        continue
+
+      }
+
+      var vec1 = o_p.rvec.clone().applyEuler(new THREE.Euler(0, Math.PI/2, 0))
+      var vec2 = p.rvec.clone().applyEuler(new THREE.Euler(0, Math.PI/2, 0))
+
+      ray.origin.set(o_info.point[0], 0, o_info.point[1])
+        .add(p.rvec.clone().multiplyScalar(.001)) 
+      ray.direction.copy(vec1)
+
+      var pos = ray.intersectVec2(
+        vec2, 
+        new THREE.Vector3(info.point[0], 0, info.point[1])
+          .add(p.rvec.clone().multiplyScalar(.001)), 
+        'xz'
+      )
+
+      info.point[0] = pos.x
+      info.point[1] = pos.z
+
+      o_info = info
+      o_p = p
+
+      if(iter > 10) {
+        
+        console.warn('iterible')
+        return true
+
+      }
+
     }
+
+    return iter > 0
+
+  }
+
+  function fixObjObjs(obj, objs, point) {
+
+    // TODO includes getFixedPos and linesExtraProj to this and remove him
+
+    obj.position.x = point.x
+    obj.position.z = point.z
+
+    var info = null, o = null, o_info = null, o_o = null, iter = -1
+
+    while(true) {
+
+      iter++
+
+      if(o_info) {
+
+        point.x = o_info.point.x
+        point.z = o_info.point.z
+        obj.position.x = info.point.x
+        obj.position.z = info.point.z
+
+      }
+
+      info = null
+
+      for(o of objs) {
+
+        if(o === obj || o === o_o) continue
+
+        info = getFixedPos(obj, o, point)
+
+        if(info) break
+
+      }
+
+      if(!info) break
+
+      if(!o_info) {
+
+        o_info = info
+        o_o = o
+
+        continue
+
+      }
+
+      o_info = info
+      o_o = o
+
+      if(iter > 100) {
+
+        console.warn('iterible', iter)
+        return true
+
+      }
+
+    }
+
+    return iter > 0
 
   }
 
@@ -102,89 +287,22 @@ define(function(require) {
    * @param {BMControl} self 
    */
   function moveSelected(self) {
-    // настраиваем кастер и пуляем луч в мэш пола
+
+    // настраиваем кастер и пуляем луч в плэйн пола
     raycaster.setFromCamera( self.mouse, self.scene.camera )
     var intersect = raycaster.ray.intersectPlane( self.room._plane, new THREE.Vector3 )
 
-    // если мимо ничего не делаем
+    // если мимо ничего не делаем (правда это анрил, но на всяк)
     if(!intersect) return
 
     // сразу перемещаем конструкцию в место мышки
     self.obj.position.x = intersect.x
     self.obj.position.z = intersect.z
 
-    // ищем первое пересчение и записываем о нем инфу
-    var info = null, p
+    var mm = fixWallObj(self, intersect)
+    var m1 = fixObjObjs(self.obj, self.objects, intersect)
 
-    for(p of self.room._walls) {
-      
-      info = getFixedPos(self.obj, p, intersect)
-
-      if(info) break
-  
-    }
-
-    // пересечений нет - значит все ок
-    if(!info) {
-      if(self.events.onmove) self.events.onmove(self.obj, self.objects, [intersect.x, intersect.z])
-      return
-    }
-
-    var info1 = null, p1, iter = 0
-
-    while(true) {
-
-      intersect.x = info.point[0]
-      intersect.z = info.point[1]
-      self.obj.position.x = info.point[0]
-      self.obj.position.z = info.point[1]
-
-      for(p1 of self.room._walls) {
-        // исключаем из поиска исправленое пересечение
-        if(p1 === p) continue
-    
-        info1 = getFixedPos(self.obj, p1, intersect)
-    
-        if(info1) break
-    
-      }
-
-      if(!info1) {
-        if(self.events.onmove) self.events.onmove(self.obj, self.objects, info.point)
-        return
-      }
-
-      var vec1 = p.rvec.clone().applyEuler(new THREE.Euler(0, Math.PI/2, 0))//.toFixed(10)
-      var vec2 = p1.rvec.clone().applyEuler(new THREE.Euler(0, Math.PI/2, 0))//.toFixed(10)
-
-      ray.origin.set(info.point[0], 0, info.point[1])
-        .add(p.rvec.clone().multiplyScalar(.001)) 
-        // add дополнительный отступ, что бы не было пересечения
-      ray.direction.copy(vec1)
-      var pos = ray.intersectVec2(
-        vec2, 
-        new THREE.Vector3(info1.point[0], 0, info1.point[1])
-          .add(p1.rvec.clone().multiplyScalar(.001)), 
-          // add дополнительный отступ, что бы не было пересечения
-        'xz'
-      )
-
-      info1.point[0] = pos.x
-      info1.point[1] = pos.z
-
-      info = info1
-      p = p1
-
-      iter++
-
-      if(iter > 10) {
-
-        console.warn('iterible', info1)
-        return false
-
-      }
-
-    }
+    console.log(mm, m1)
 
   }
 
