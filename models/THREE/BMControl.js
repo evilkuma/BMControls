@@ -25,72 +25,6 @@ define(function(require) {
 
   }
 
-  function linesExtraProj(line1, line2, v) {
-
-    var v1 = v.clone()
-    var v2 = v.clone().multiplyScalar(-1)
-
-    var fs = [
-      [line1.start, v1, line2],
-      [line1.end,   v1, line2],
-      [line2.start, v2, line1],
-      [line2.end,   v2, line1]
-    ]
-
-    var res = fs.map(f => {
-
-      ray.direction.copy(f[1])
-      ray.origin.copy(f[0])
-
-      var pos = ray.intersectLine2(f[2], 'xz')
-      
-      if(!pos) return false
-
-      return [pos.distanceTo(f[0]), f[1] === v1 ? pos.sub(f[0]) : f[0].clone().sub(pos)]
-
-    }).filter(el => !!el)
-
-    var dist = res[0]
-    for(var i = 1; i < res.length; i++)
-      if(res[i][0] > dist[0]) {
-
-        dist = res[i]
-
-      }
-
-    return dist[1]
-
-  }
-
-  function getFixedPos(obj, o, point) {
-
-    var res = obj.rectangle.cross(o.rectangle)
-    if(!res) return false
-
-    var v = obj.position.clone().sub(o.position).normalize()
-
-    var line1 = obj.rectangle.localToWorld(
-      obj.rectangle.getLineFromDirect(v.clone().multiplyScalar(-1))
-    )
-    var line2 = o.rectangle.localToWorld(
-      o.rectangle.getLineFromDirect(v)
-    )
-
-    var p = linesExtraProj(line1, line2, v)
-    if(!p) return false
-
-    p.x += point.x
-    p.y = 0
-    p.z += point.z
-    //add дополнительный отступ, что бы не было пересечения
-    p.add(v.clone().multiplyScalar(.001))
-
-    return {
-      point: p
-    }
-
-  }
-
 
   function fixWallObj(self, intersect) {
 
@@ -128,7 +62,6 @@ define(function(require) {
             continue
     
         } else {
-    
           // когда мышь за пределами комнаты
           var angle = p.point1.angleTo(p.point2) - p.point1.angleTo(intersect) - p.point2.angleTo(intersect)
     
@@ -210,7 +143,7 @@ define(function(require) {
       if(iter > 10) {
         
         console.warn('iterible')
-        return true
+        return false
 
       }
 
@@ -248,9 +181,75 @@ define(function(require) {
 
         if(o === obj || o === o_o) continue
 
-        info = getFixedPos(obj, o, point)
+        // info = getFixedPos(obj, o, point)
 
-        if(info) break
+        var res = obj.rectangle.cross(o.rectangle)
+        if(!res) continue
+
+        var v = obj.position.clone().sub(o.position).normalize()
+
+        var line1 = obj.rectangle.getLineFromDirect(v.clone().multiplyScalar(-1)) 
+        if(line1)
+          line1 = obj.rectangle.localToWorld( line1 )
+        else 
+          return false
+
+        var line2 = o.rectangle.getLineFromDirect(v)
+        if(line2) 
+          line2 = o.rectangle.localToWorld(line2)
+        else
+          return false
+
+        var p
+        {
+
+          var v1 = v.clone()
+          var v2 = v.clone().multiplyScalar(-1)
+          var fs = [
+            [line1.start, v1, line2],
+            [line1.end,   v1, line2],
+            [line2.start, v2, line1],
+            [line2.end,   v2, line1]
+          ]
+          
+          var res = fs.map(f => {
+
+            ray.direction.copy(f[1])
+            ray.origin.copy(f[0])
+      
+            var pos = ray.intersectLine2(f[2], 'xz')
+            
+            if(!pos) return false
+      
+            return [pos.distanceTo(f[0]), f[1] === v1 ? pos.sub(f[0]) : f[0].clone().sub(pos)]
+      
+          }).filter(el => !!el)
+
+          var dist = res[0]
+          for(var i = 1; i < res.length; i++)
+            if(res[i][0] > dist[0]) {
+
+              dist = res[i]
+
+            }
+
+          p = dist[1]
+
+        }
+
+        if(!p) continue
+
+        p.x += point.x
+        p.y = 0
+        p.z += point.z
+        //add дополнительный отступ, что бы не было пересечения
+        p.add(v.clone().multiplyScalar(.001))
+
+        info = {
+          point: p
+        }
+        
+        break
 
       }
 
@@ -271,7 +270,7 @@ define(function(require) {
       if(iter > 100) {
 
         console.warn('iterible', iter)
-        return true
+        return false
 
       }
 
@@ -296,13 +295,35 @@ define(function(require) {
     if(!intersect) return
 
     // сразу перемещаем конструкцию в место мышки
+    // var old = self.obj.position.clone()
     self.obj.position.x = intersect.x
     self.obj.position.z = intersect.z
 
-    var mm = fixWallObj(self, intersect)
-    var m1 = fixObjObjs(self.obj, self.objects, intersect)
+    var iter = 0
 
-    console.log(mm, m1)
+    // TODO fixed recutsive
+    var wo = fixWallObj(self, intersect)
+    var oo = fixObjObjs(self.obj, self.objects, intersect)
+
+    // if(oo && wo) self.obj.position.copy(old)
+
+    // var recursive = function() {
+    //   iter++;
+    //   if(iter > 10) {
+    //     console.warn('iter')
+    //     return;
+    //   }
+
+    //   fixWallObj(self, intersect)
+    //   oo = fixObjObjs(self.obj, self.objects, intersect)
+      
+    //   if(oo) {
+    //     recursive()
+    //   }
+
+    // }
+
+    // if(oo || wo) recursive()
 
   }
 

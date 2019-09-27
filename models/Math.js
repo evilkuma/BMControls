@@ -13,8 +13,8 @@ function isCrossLines2(v1, v2, v3, v4, VX = 'x', VY = 'y') {
   
   var ccw = (v1, v2) => v1[VX] * v2[VY] - v1[VY] * v2[VX]
 
-  return ( (ccw(v21, v31) <= 0) ^ (ccw(v21, v41) <= 0) ) &&
-          ( (ccw(v43, v23) <= 0) ^ (ccw(v43, v13) <= 0) )
+  return ( (ccw(v21, v31) < 0) ^ (ccw(v21, v41) < 0) ) &&
+          ( (ccw(v43, v23) < 0) ^ (ccw(v43, v13) < 0) )
 
 }
 
