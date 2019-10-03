@@ -18,6 +18,9 @@ define(function(require) {
     if(this.x/v.x !== this.z/v.z) return false
     return true
   }
+  THREE.Vector3.prototype.opposite = function(v) {
+    return v.clone().multiplyScalar(-1).equals(this)
+  }
 
   THREE.CubeMesh = require('./CubeMesh')
   THREE.LinesHelper = require('./LinesHelper')

@@ -4,6 +4,7 @@ define(function(require) {
   var Room = require('./Room')
   var raycaster = new THREE.Raycaster
   var ray = new THREE.Ray
+  var SCOPE = require('./../global')
 
 
   /**
@@ -25,6 +26,224 @@ define(function(require) {
 
   }
 
+  function getInterestWalls(self, intersect, exclude) {
+
+    var res = []
+
+    for(var p of self.room._walls) {
+
+      if(exclude && exclude.includes(p)) continue
+
+      ray.set(intersect, p.rvec.clone().multiplyScalar(-1))
+      var pos = ray.intersectPlane(p, new THREE.Vector3)
+
+      if(pos) {
+        if( (pos.x > p.max.x || pos.x < p.min.x) || (pos.z > p.max.z || pos.z < p.min.z) ) 
+          continue
+      } else {
+        var angle = p.point1.angleTo(p.point2) - p.point1.angleTo(intersect) - p.point2.angleTo(intersect)
+        if(+angle.toFixed(10) < 0) continue
+      }
+
+      var points = self.obj.toRectY(intersect).map(pt => pt.start)
+
+      var isOver = false
+      var over_poses = points.map(pt => {
+    
+        ray.set(pt, p.rvec)
+        var res = ray.intersectPlane(p, new THREE.Vector3)
+        if(res) isOver = true
+    
+        return res
+    
+      })
+
+      if(!isOver) continue
+
+      var idx, distance = 0
+      for(let i = 0; i < over_poses.length; i++) {
+
+        if(!over_poses[i]) continue
+
+        var ndist = over_poses[i].distanceTo(points[i])
+        if(ndist >= distance) {
+          distance = ndist
+          idx = i
+        }
+
+      }
+
+      var mv = p.rvec.clone().multiplyScalar(.001)
+      var nx = intersect.x - (points[idx].x - over_poses[idx].x) + mv.x
+      var nz = intersect.z - (points[idx].z - over_poses[idx].z) + mv.z
+
+      res.push({ 
+        point: new THREE.Vector3(nx, 0, nz),
+        p
+      })
+
+    }
+
+    return res
+
+  }
+
+  function getInterestObjs(self, intersect, exclude) {
+
+    var res = []
+
+    for(var o of self.objects) {
+
+      if(self.obj === o || (exclude && exclude.includes(o))) continue
+
+      var cross = self.obj.rectangle.cross(o.rectangle, intersect)
+      if(!cross) continue
+
+      res.push({
+        cross,
+        o
+      })
+
+    }
+
+    return res
+
+  }
+
+  function setFixedWalls(walls, intersect) {
+
+    if(!walls.length) return false
+    if(walls.length === 1) {
+      intersect.copy(walls[0].point)
+      return walls[0].p.rvec
+    }
+
+    var vec1 = walls[0].p.rvec.clone().applyEuler(new THREE.Euler(0, Math.PI/2, 0))
+    var vec2 = walls[1].p.rvec.clone().applyEuler(new THREE.Euler(0, Math.PI/2, 0))
+
+    ray.set(walls[0].point, vec1)
+
+    var res = ray.intersectVec2( vec2, walls[1].point, 'xz')
+
+    intersect.copy(res)
+
+    return walls[0].p.rvec.clone().add(walls[1].p.rvec).normalize()
+
+  }
+
+  function setFixedObjs(obj, objs, intersect, vec) {
+
+    if(!objs.length) return
+
+    if(objs.length === 1) {
+
+      var lines = objs[0].o.rectangle.getWorldLines()
+
+      var info = lines.map(line => { 
+
+        var v = line.start.clone().sub(line.end).normalize()
+        var dir = v.clone().applyEuler(new THREE.Euler(0, Math.PI/2, 0)).toFixed(10)
+
+        ray.origin.copy(intersect)
+        ray.direction.copy(dir.clone().multiplyScalar(-1))
+        var p1 = v.clone().multiplyScalar(1000).add(line.start)
+        var p2 = v.clone().multiplyScalar(-1000).add(line.end)
+
+        if(!ray.intersectsLine2(new THREE.Line3(p1, p2), 'xz'))
+          return false
+
+        return { v, line, dir }
+
+      }).filter(l => !!l)
+
+      var v = false
+
+      if(info.length === 1) {
+
+        v = info[0].dir
+
+      } else if(info.length === 2) {
+        
+        v = info[0].dir.clone().add(info[1].dir).normalize()
+
+      } else {  // length === 0 => find in obj
+
+        v = objs[0].o.rectangle.directionFromTriangles(intersect)
+
+      }
+
+      if(!v) {
+        // если точка совпадает точно с центром, берем вектор по стенам
+        // если вектора по стенам нет - произвольное направление
+        v = vec ? vec : new THREE.Vector3(0, 0, 1)
+
+      }
+        
+      var line1 = obj.rectangle.getLineFromDirect(v.clone().multiplyScalar(-1)) 
+      if(line1) {
+
+        line1 = line1.clone()
+        line1.start.add(intersect)
+        line1.end.add(intersect)
+
+      } else return false
+
+      var line2 = objs[0].o.rectangle.getLineFromDirect(v)
+      if(line2) line2 = objs[0].o.rectangle.localToWorld(line2)
+        else return false
+
+      var p
+
+      var v1 = v.clone()
+      var v2 = v.clone().multiplyScalar(-1)
+      var fs = [
+        [line1.start, v1, line2],
+        [line1.end,   v1, line2],
+        [line2.start, v2, line1],
+        [line2.end,   v2, line1]
+      ]
+
+      var res = fs.map(f => {
+
+        ray.direction.copy(f[1])
+        ray.origin.copy(f[0])
+  
+        var pos = ray.intersectLine2(f[2], 'xz')
+        
+        if(!pos) return false
+  
+        return [pos.distanceTo(f[0]), f[1] === v1 ? pos.sub(f[0]) : f[0].clone().sub(pos)]
+
+      }).filter(el => !!el)
+      
+      if(!res.length) return false
+
+      var dist = res[0]
+      for(var i = 1; i < res.length; i++)
+        if(res[i][0] > dist[0]) {
+
+          dist = res[i]
+
+        }
+
+      p = dist[1]
+
+      if(!p) {
+
+        return false
+      }
+
+      p.add(v.clone().multiplyScalar(.001))
+
+      intersect.add(p)
+
+      return true
+
+    }
+
+    // TODO: add multy objs
+
+  }
 
   function fixWallObj(self, intersect) {
 
@@ -100,8 +319,9 @@ define(function(require) {
         }
 
         // подсчитываем допустимые координаты
-        var nx = intersect.x - (points[idx].x - over_poses[idx].x)
-        var nz = intersect.z - (points[idx].z - over_poses[idx].z)
+        var mv = p.rvec.clone().multiplyScalar(.001)
+        var nx = intersect.x - (points[idx].x - over_poses[idx].x) + mv.x
+        var nz = intersect.z - (points[idx].z - over_poses[idx].z) + mv.z
 
         info = { point: [nx, nz] }
         
@@ -124,13 +344,13 @@ define(function(require) {
       var vec2 = p.rvec.clone().applyEuler(new THREE.Euler(0, Math.PI/2, 0))
 
       ray.origin.set(o_info.point[0], 0, o_info.point[1])
-        .add(p.rvec.clone().multiplyScalar(.001)) 
+        // .add(p.rvec.clone().multiplyScalar(.001)) 
       ray.direction.copy(vec1)
 
       var pos = ray.intersectVec2(
         vec2, 
-        new THREE.Vector3(info.point[0], 0, info.point[1])
-          .add(p.rvec.clone().multiplyScalar(.001)), 
+        new THREE.Vector3(info.point[0], 0, info.point[1]),
+          // .add(p.rvec.clone().multiplyScalar(.001)), 
         'xz'
       )
 
@@ -294,16 +514,66 @@ define(function(require) {
     // если мимо ничего не делаем (правда это анрил, но на всяк)
     if(!intersect) return
 
-    // сразу перемещаем конструкцию в место мышки
-    // var old = self.obj.position.clone()
-    self.obj.position.x = intersect.x
-    self.obj.position.z = intersect.z
+    var walls = getInterestWalls(self, intersect)
 
-    var iter = 0
+    if(walls.length === 1) {
+
+      var tmp = getInterestWalls(self, walls[0].point, [walls[0].p])
+      if(tmp.length) walls.push(tmp[0])
+
+    }
+
+    var v = setFixedWalls(walls, intersect)
+
+    var objs = getInterestObjs(self, intersect)
+
+    if(!objs.length) {
+
+      self.obj.position.x = intersect.x
+      self.obj.position.z = intersect.z
+      
+      return
+
+    }
+
+    // if(!walls.length) {
+
+      if(setFixedObjs(self.obj, objs, intersect, v)) {
+
+        walls = getInterestWalls(self, intersect)
+
+        if(!walls.length) {
+
+          self.obj.position.x = intersect.x
+          self.obj.position.z = intersect.z
+
+          return
+
+        }
+
+      }
+
+    // }
+
+
+
+
+    // console.log(walls)
 
     // TODO fixed recutsive
-    var wo = fixWallObj(self, intersect)
-    var oo = fixObjObjs(self.obj, self.objects, intersect)
+
+    // var iter = 0
+    // while((
+    //   fixWallObj(self, intersect) || 
+    //   fixObjObjs(self.obj, self.objects, intersect)
+    // ) && iter < 10) {
+    //   iter++
+    // }
+
+    // if(iter > 8) console.warn('iter')
+
+    // var wo = fixWallObj(self, intersect)
+    // var oo = fixObjObjs(self.obj, self.objects, intersect)
 
     // if(oo && wo) self.obj.position.copy(old)
 

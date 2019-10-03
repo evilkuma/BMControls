@@ -120,8 +120,11 @@ define(function(require) {
     return calcRealSize(this.userData.size.clone(), this.rotation.y, 'x', 'z').toFixed(10)
 
   }
-  CubeMesh.prototype.toRectY = function() {
+  CubeMesh.prototype.toRectY = function(mv) {
 
+    if(mv) // fixed
+      return this.rectangle.getMovedLines(mv)
+      
     return this.rectangle.getWorldPoints()
 
   }

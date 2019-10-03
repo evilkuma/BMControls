@@ -5,8 +5,9 @@
 
 define(function(require) {
 
-  // var helper = require('./LinesHelper')
+  var helper = require('./LinesHelper')
   var _Math = require('./../Math')
+  var SCOPE = require('./../global')
 
   var ray = new THREE.Ray
 
@@ -18,8 +19,10 @@ define(function(require) {
     for(var i = 0; i < 4; i++) 
       this.lines.push(new THREE.Line3(new THREE.Vector3, new THREE.Vector3))
 
-    // this.helper = new helper
-    // this.helper.setLines(this.lines)
+    this.helper = new helper
+    this.helper.setLines(this.lines)
+
+    SCOPE.scene.add(this.helper)
 
     if(points) {
 
@@ -78,11 +81,11 @@ define(function(require) {
 
     this.position = position
 
-    // Object.defineProperty(this.helper, 'position', {
-    //   configurable: true,
-		// 	enumerable: true,
-		// 	value: position
-    // })
+    Object.defineProperty(this.helper, 'position', {
+      configurable: true,
+			enumerable: true,
+			value: position
+    })
 
   }
 
@@ -143,9 +146,26 @@ define(function(require) {
 
   }
 
-  Rectangle.prototype.cross = function(rect) {
+  Rectangle.prototype.directionFromTriangles = function(v) {
 
-    var lines1 = this.getWorldLines()
+    v = v.clone().sub(this.position)
+    var lines = this.lines
+    var c = new THREE.Vector3
+
+    for(var line of lines) {
+
+      if(_Math.pointInTriangle2(v, line.start, line.end, c, 'x', 'z'))
+        return line.start.clone().sub(line.end).applyEuler(new THREE.Euler(0, Math.PI/2, 0)).normalize().toFixed(10)
+
+    }
+
+    return false
+    
+  }
+
+  Rectangle.prototype.cross = function(rect, mv = this.position) {
+
+    var lines1 = this.getMovedLines(mv)
     var lines2 = rect.getWorldLines()
 
     var crosses = [], line1, line2
@@ -211,6 +231,31 @@ define(function(require) {
 
 
     return res
+
+  }
+
+  Rectangle.prototype.getAreas = function() {
+
+    var res = [[],[],[],[]]
+    var points = this.lines.map(p => p.start)
+
+    for(var line of this.lines) {
+
+      var i1 = points.findIndex(p => p.equals(line.start))
+      var i2 = points.findIndex(p => p.equals(line.end))
+
+      var v1 = line.start.clone().sub(line.end).divideScalar(2).add(line.end).normalize()
+      // var v2 = v1//.clone()//.multiplyScalar(-1)
+
+      res[i1].push(v1)
+      res[i2].push(v1)
+
+    }
+
+    return {
+      vecs: res,
+      points: points.map(p => p.clone().add(this.position))
+    }
 
   }
 

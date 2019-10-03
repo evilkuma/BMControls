@@ -18,6 +18,7 @@
   function run() {
 
     scene = new THREE.DefaultScene(document.body)
+    SCOPE.scene = scene.scene
 
     ocontrol = new THREE.OrbitControls(scene.camera, scene.renderer.domElement)
 
