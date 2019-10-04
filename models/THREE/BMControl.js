@@ -135,17 +135,24 @@ define(function(require) {
 
     if(!objs.length) return
 
-    if(objs.length === 1) {
+    /**
+     * calc vector mv
+     */
 
-      var lines = objs[0].o.rectangle.getWorldLines()
+    var v = new THREE.Vector3
 
-      var info = lines.map(line => { 
+    objs.map(o => {
+      
+      var lines = o.o.rectangle.getWorldLines()
+      
+      var info = lines.map(line => {
 
         var v = line.start.clone().sub(line.end).normalize()
         var dir = v.clone().applyEuler(new THREE.Euler(0, Math.PI/2, 0)).toFixed(10)
 
         ray.origin.copy(intersect)
         ray.direction.copy(dir.clone().multiplyScalar(-1))
+
         var p1 = v.clone().multiplyScalar(1000).add(line.start)
         var p2 = v.clone().multiplyScalar(-1000).add(line.end)
 
@@ -156,28 +163,24 @@ define(function(require) {
 
       }).filter(l => !!l)
 
-      var v = false
+      if(info.length === 1) return info[0].dir
+      if(info.length === 2) return info[0].dir.clone().add(info[1].dir).normalize()
+      return o.o.rectangle.directionFromTriangles(intersect)
 
-      if(info.length === 1) {
+    }).filter(v => !!v).forEach(e => v.add(e).normalize())
 
-        v = info[0].dir
+    if(v.equals({x:0, y:0, z:0})) v = vec ? vec : new THREE.Vector3(0, 0, 1)
 
-      } else if(info.length === 2) {
-        
-        v = info[0].dir.clone().add(info[1].dir).normalize()
+    arar.position.copy(intersect)
+    arar.setDirection(v)
 
-      } else {  // length === 0 => find in obj
+    if(vec && v.angleTo(vec) > Math.PI/2) v = vec
 
-        v = objs[0].o.rectangle.directionFromTriangles(intersect)
+    /**
+     * calc mv val by vector
+     */
 
-      }
-
-      if(!v) {
-        // если точка совпадает точно с центром, берем вектор по стенам
-        // если вектора по стенам нет - произвольное направление
-        v = vec ? vec : new THREE.Vector3(0, 0, 1)
-
-      }
+    if(objs.length === 1) {
         
       var line1 = obj.rectangle.getLineFromDirect(v.clone().multiplyScalar(-1)) 
       if(line1) {
@@ -238,6 +241,11 @@ define(function(require) {
       intersect.add(p)
 
       return true
+
+    }
+
+    if(objs.length === 2) {
+
 
     }
 

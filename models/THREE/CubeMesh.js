@@ -55,9 +55,9 @@ define(function(require) {
   
 
 
-  function CubeMesh() {
+  function CubeMesh(z) {
     this.constructor(
-      new THREE.BoxGeometry(100, 100, 200),
+      new THREE.BoxGeometry(100, 100, z?z:200),
       new THREE.MeshPhongMaterial({ color: 'lightgreen', transparent: true, opacity: 0.5 })
     )
 

@@ -11,9 +11,7 @@ define(function(require) {
 
   var ray = new THREE.Ray
 
-  function Rectangle(points) {
-
-    this.position = new THREE.Vector3
+  function Rectangle(points, position = new THREE.Vector3) {
 
     this.lines = []
     for(var i = 0; i < 4; i++) 
@@ -22,6 +20,8 @@ define(function(require) {
     this.helper = new helper
     this.helper.setLines(this.lines)
 
+    this.setPosition(position)
+
     SCOPE.scene.add(this.helper)
 
     if(points) {
@@ -29,6 +29,52 @@ define(function(require) {
       this.setFromPoints(points)
 
     }
+
+  }
+
+  Rectangle.prototype.rotate = function(rot) {
+
+    var euler = new THREE.Euler(0, rot, 0)
+
+    this.lines.forEach(line => {
+
+      line.start.copy(line.start.clone().normalize().applyEuler(euler).toFixed().normalize().multiplyScalar(line.start.length()))
+      line.end.copy(line.end.clone().normalize().applyEuler(euler).toFixed().normalize().multiplyScalar(line.end.length()))
+
+    })
+
+    return this
+
+  }
+
+  // { 0 ... 90 } deg
+  Rectangle.prototype.getBounding = function(rot) {
+
+    if(rot === 0) return this.clone()
+
+    var euler = new THREE.Euler(0, rot, 0)
+
+    var vecs = this.lines.map(line => 
+      line.end.clone().sub(line.start).applyEuler(euler).toFixed().normalize()
+    )
+      
+    var ps = []
+
+    for(var i1 = 0; i1 < vecs.length; i1++) {
+
+      var i2 = i1 === vecs.length - 1 ? 0 : i1 + 1
+
+      var p11 = this.lines[i1].end
+      var p21 = this.lines[i2].end
+
+      var p12 = p11.clone().add(vecs[i1].clone().multiplyScalar(100))
+      var p22 = p21.clone().add(vecs[i2].clone().multiplyScalar(100))
+
+      ps.push(_Math.linesCrossPoint2(p11, p12, p21, p22, 'x', 'z'))
+
+    }
+
+    return new Rectangle().setFromPoints(ps.map(p => [p.x, p.z]))
 
   }
 
@@ -43,6 +89,37 @@ define(function(require) {
       this.lines[i].end.set(p2[0], 0, p2[1])
 
     }
+
+    return this
+
+  }
+
+  Rectangle.prototype.setFromSizeAndAngle = function(l, h, rot) {
+
+    var beta = Math.asin( (2*l*h)/(l*l+h*h) )
+    var beta1 = Math.PI - beta
+
+    if(l < h) {
+      var tmp = beta; beta = beta1; beta1 = tmp
+    }
+
+    var a0 = beta/2 + rot
+    var a1 = a0 + beta1
+    var a2 = a1 + beta
+    var a3 = a2 + beta1
+
+    var R = Math.sqrt(l*l + h*h)/2
+
+    var points = [
+      [ R*Math.cos(a0), -R*Math.sin(a0) ],
+      [ R*Math.cos(a1), -R*Math.sin(a1) ],
+      [ R*Math.cos(a2), -R*Math.sin(a2) ],
+      [ R*Math.cos(a3), -R*Math.sin(a3) ]
+    ]
+
+    this.setFromPoints(points)
+
+    return this
 
   }
 
@@ -256,6 +333,15 @@ define(function(require) {
       vecs: res,
       points: points.map(p => p.clone().add(this.position))
     }
+
+  }
+
+  Rectangle.prototype.clone = function() {
+
+    return new Rectangle(
+      this.getPoints().map(p => [p.x, p.z]),
+      this.position.clone()
+    )
 
   }
 
