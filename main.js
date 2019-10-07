@@ -47,29 +47,19 @@
       obj.mark()
     }
     
-    // var boxes = [new THREE.CubeMesh, new THREE.CubeMesh, new THREE.CubeMesh, new THREE.CubeMesh(100)]
-    // boxes[0].position.x = 300
-    // boxes[0].rotation.y = Math.PI/4
-    // boxes[1].position.x = -300
-    // boxes[3].position.z = -300
-    // boxes[1].rotation.y = Math.PI/4
+    var boxes = [new THREE.CubeMesh, new THREE.CubeMesh, new THREE.CubeMesh, new THREE.CubeMesh(100)]
+    boxes[0].position.x = 300
+    boxes[0].rotation.y = Math.PI/4
+    boxes[1].position.x = -300
+    boxes[3].position.z = -300
+    boxes[1].rotation.y = Math.PI/4
 
-    // scene.scene.add(...boxes)
-    // bmcontrol.objects.push(...boxes)
+    scene.scene.add(...boxes)
+    bmcontrol.objects.push(...boxes)
 
-    // window.arar = new THREE.ArrowHelper
-    // scene.scene.add(arar)
-    // arar.setLength(300)
-
-
-    // TEST Rectangle
-
-    var r1 = new THREE.Rectangle
-    r1.setFromSizeAndAngle(100, 200, 0)
-
-
-    for(var i = 0; i < 100; i++) 
-      r1 = r1.getBounding(Math.PI/180*10)
+    window.arar = new THREE.ArrowHelper
+    scene.scene.add(arar)
+    arar.setLength(300)
 
 
   }

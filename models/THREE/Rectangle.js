@@ -47,10 +47,11 @@ define(function(require) {
 
   }
 
-  // { 0 ... 90 } deg
   Rectangle.prototype.getBounding = function(rot) {
-
+    
     if(rot === 0) return this.clone()
+    // normalized from 0 ... 90 deg
+    rot = THREE.Math.euclideanModulo(rot, Math.PI/2)
 
     var euler = new THREE.Euler(0, rot, 0)
 
@@ -74,7 +75,35 @@ define(function(require) {
 
     }
 
-    return new Rectangle().setFromPoints(ps.map(p => [p.x, p.z]))
+    return this.clone().setFromPoints(ps.map(p => [p.x, p.z]))
+
+  }
+
+  Rectangle.prototype.getBoundingByVec = function(vec) {
+
+    var vec1 = this.lines[0].start.clone().sub(this.lines[0].end).normalize()
+
+    return this.getBounding(
+      // calc angle
+      new THREE.Vector2(vec1.x, vec1.z).angle() - new THREE.Vector2(vec.x, vec.z).angle()
+    )
+
+  }
+
+  Rectangle.prototype.distanceByVec = function(rect, vec) {
+
+    var rect1 = this.getBoundingByVec(vec)
+    var rect2 = rect.getBoundingByVec(vec)
+
+    var line1 = rect1.getLineFromDirect(vec)
+    var line2 = rect2.getLineFromDirect(vec.clone().multiplyScalar(-1))
+
+    if(!line1 || !line2) return false
+
+    line1 = rect1.localToWorld(line1)
+    line2 = rect2.localToWorld(line2)
+
+    return line1.start.multiply(vec).sub(line2.start.multiply(vec))
 
   }
 

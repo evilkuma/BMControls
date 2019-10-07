@@ -170,6 +170,14 @@ define(function(require) {
     }).filter(v => !!v).forEach(e => v.add(e).normalize())
 
     if(v.equals({x:0, y:0, z:0})) v = vec ? vec : new THREE.Vector3(0, 0, 1)
+    else if(vec) {
+      var vecr = vec.clone().applyEuler(new THREE.Euler(0, Math.PI/2, 0))
+      var a = Math.PI/2
+      if(vecr.angleTo(v) > Math.PI/2) a *= -1
+
+      v = vec.clone().applyEuler(new THREE.Euler(0, a, 0)).toFixed().normalize()
+
+    }
 
     arar.position.copy(intersect)
     arar.setDirection(v)
@@ -246,10 +254,9 @@ define(function(require) {
 
     if(objs.length === 2) {
 
+      // TODO: add multy objs
 
     }
-
-    // TODO: add multy objs
 
   }
 
