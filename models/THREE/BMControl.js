@@ -2,9 +2,9 @@
 define(function(require) {
 
   var Room = require('./Room')
+  var Rectangle = require('./Rectangle')
   var raycaster = new THREE.Raycaster
   var ray = new THREE.Ray
-  var SCOPE = require('./../global')
 
 
   /**
@@ -29,6 +29,8 @@ define(function(require) {
   function getInterestWalls(self, intersect, exclude) {
 
     var res = []
+    var obj = self.obj
+    var rect = self.rects[self.objects.indexOf(obj)]
 
     for(var p of self.room._walls) {
 
@@ -45,7 +47,7 @@ define(function(require) {
         if(+angle.toFixed(10) < 0) continue
       }
 
-      var points = self.obj.toRectY(intersect).map(pt => pt.start)
+      var points = rect.getMovedLines(intersect).map(pt => pt.start)
 
       var isOver = false
       var over_poses = points.map(pt => {
@@ -91,17 +93,22 @@ define(function(require) {
   function getInterestObjs(self, intersect, exclude) {
 
     var res = []
+    var obj = self.obj
+    var rect = self.rects[self.objects.indexOf(obj)]
 
-    for(var o of self.objects) {
+    for(var i in self.objects) {
+      
+      var obj1 = self.objects[i]
+      var rect1 = self.rects[i]
 
-      if(self.obj === o || (exclude && exclude.includes(o))) continue
+      if(obj === obj1 || (exclude && exclude.includes(obj1))) continue
 
-      var cross = self.obj.rectangle.cross(o.rectangle, intersect)
+      var cross = rect.cross(rect1, intersect)
       if(!cross) continue
 
       res.push({
         cross,
-        o
+        obj1
       })
 
     }
@@ -131,7 +138,7 @@ define(function(require) {
 
   }
 
-  function setFixedObjs(obj, objs, intersect, vec) {
+  function setFixedObjs(self, objs, intersect, vec) {
 
     if(!objs.length) return
 
@@ -139,11 +146,15 @@ define(function(require) {
      * calc vector mv
      */
 
+    var obj = self.obj
+    var rect = self.rects[self.objects.indexOf(obj)]
     var v = new THREE.Vector3
 
-    objs.map(o => {
+    objs.map((o, i) => {
       
-      var lines = o.o.rectangle.getWorldLines()
+      var rect1 = self.rects[self.objects.indexOf(o.obj1)]
+      o.rect1 = rect1
+      var lines = rect1.getWorldLines()
       
       var info = lines.map(line => {
 
@@ -165,7 +176,7 @@ define(function(require) {
 
       if(info.length === 1) return info[0].dir
       if(info.length === 2) return info[0].dir.clone().add(info[1].dir).normalize()
-      return o.o.rectangle.directionFromTriangles(intersect)
+      return rect1.directionFromTriangles(intersect)
 
     }).filter(v => !!v).forEach(e => v.add(e).normalize())
 
@@ -179,9 +190,6 @@ define(function(require) {
 
     }
 
-    arar.position.copy(intersect)
-    arar.setDirection(v)
-
     if(vec && v.angleTo(vec) > Math.PI/2) v = vec
 
     /**
@@ -190,7 +198,7 @@ define(function(require) {
 
     if(objs.length === 1) {
         
-      var line1 = obj.rectangle.getLineFromDirect(v.clone().multiplyScalar(-1)) 
+      var line1 = rect.getLineFromDirect(v.clone().multiplyScalar(-1)) 
       if(line1) {
 
         line1 = line1.clone()
@@ -199,8 +207,8 @@ define(function(require) {
 
       } else return false
 
-      var line2 = objs[0].o.rectangle.getLineFromDirect(v)
-      if(line2) line2 = objs[0].o.rectangle.localToWorld(line2)
+      var line2 = objs[0].rect1.getLineFromDirect(v)
+      if(line2) line2 = objs[0].rect1.localToWorld(line2)
         else return false
 
       var p
@@ -260,261 +268,6 @@ define(function(require) {
 
   }
 
-  function fixWallObj(self, intersect) {
-
-    var o_info = null, o_p = null, info = null, p = null, iter = -1
-
-    while(true) {
-
-      iter++
-
-      if(o_info) {
-
-        intersect.x = o_info.point[0]
-        intersect.z = o_info.point[1]
-        self.obj.position.x = o_info.point[0]
-        self.obj.position.z = o_info.point[1]
-
-      }
-
-      info = null
-
-      for(p of self.room._walls) {
-
-        if(p === o_p) continue
-
-        // info = getFixedPos(self.obj, p, intersect)
-
-        // ищем проецкию позицию передвижения на плэйн
-        ray.set(intersect, p.rvec.clone().multiplyScalar(-1))
-        var pos = ray.intersectPlane(p, new THREE.Vector3)
-
-        if(pos) {
-          // проверяем вхождение точки в зону действия плэйна
-          // когда мышь в пределах комнаты
-          if( (pos.x > p.max.x || pos.x < p.min.x) || (pos.z > p.max.z || pos.z < p.min.z) ) 
-            continue
-    
-        } else {
-          // когда мышь за пределами комнаты
-          var angle = p.point1.angleTo(p.point2) - p.point1.angleTo(intersect) - p.point2.angleTo(intersect)
-    
-          if(+angle.toFixed(10) < 0) continue
-
-        }
-
-        // ищем предельеные точки объекта, которые выходят за пределы плэйна
-        var points = self.obj.toRectY()
-        var isOver = false
-        var over_poses = points.map(pt => {
-      
-          ray.set(pt, p.rvec)
-          var res = ray.intersectPlane(p, new THREE.Vector3)
-          if(res) isOver = true
-      
-          return res
-      
-        })
-
-        // если нет точки вышелшей за пределы - все ок
-        if(!isOver) continue
-
-        // находим точку дальше всего выходящую за пределы плэйна
-        var idx, distance = 0
-        for(let i = 0; i < over_poses.length; i++) {
-
-          if(!over_poses[i]) continue
-
-          var ndist = over_poses[i].distanceTo(points[i])
-          if(ndist >= distance) {
-            distance = ndist
-            idx = i
-          }
-
-        }
-
-        // подсчитываем допустимые координаты
-        var mv = p.rvec.clone().multiplyScalar(.001)
-        var nx = intersect.x - (points[idx].x - over_poses[idx].x) + mv.x
-        var nz = intersect.z - (points[idx].z - over_poses[idx].z) + mv.z
-
-        info = { point: [nx, nz] }
-        
-        break
-  
-      }
-  
-      if(!info) break
-  
-      if(!o_info) {
-
-        o_info = info
-        o_p = p
-
-        continue
-
-      }
-
-      var vec1 = o_p.rvec.clone().applyEuler(new THREE.Euler(0, Math.PI/2, 0))
-      var vec2 = p.rvec.clone().applyEuler(new THREE.Euler(0, Math.PI/2, 0))
-
-      ray.origin.set(o_info.point[0], 0, o_info.point[1])
-        // .add(p.rvec.clone().multiplyScalar(.001)) 
-      ray.direction.copy(vec1)
-
-      var pos = ray.intersectVec2(
-        vec2, 
-        new THREE.Vector3(info.point[0], 0, info.point[1]),
-          // .add(p.rvec.clone().multiplyScalar(.001)), 
-        'xz'
-      )
-
-      info.point[0] = pos.x
-      info.point[1] = pos.z
-
-      o_info = info
-      o_p = p
-
-      if(iter > 10) {
-        
-        console.warn('iterible')
-        return false
-
-      }
-
-    }
-
-    return iter > 0
-
-  }
-
-  function fixObjObjs(obj, objs, point) {
-
-    // TODO includes getFixedPos and linesExtraProj to this and remove him
-
-    obj.position.x = point.x
-    obj.position.z = point.z
-
-    var info = null, o = null, o_info = null, o_o = null, iter = -1
-
-    while(true) {
-
-      iter++
-
-      if(o_info) {
-
-        point.x = o_info.point.x
-        point.z = o_info.point.z
-        obj.position.x = info.point.x
-        obj.position.z = info.point.z
-
-      }
-
-      info = null
-
-      for(o of objs) {
-
-        if(o === obj || o === o_o) continue
-
-        // info = getFixedPos(obj, o, point)
-
-        var res = obj.rectangle.cross(o.rectangle)
-        if(!res) continue
-
-        var v = obj.position.clone().sub(o.position).normalize()
-
-        var line1 = obj.rectangle.getLineFromDirect(v.clone().multiplyScalar(-1)) 
-        if(line1)
-          line1 = obj.rectangle.localToWorld( line1 )
-        else 
-          return false
-
-        var line2 = o.rectangle.getLineFromDirect(v)
-        if(line2) 
-          line2 = o.rectangle.localToWorld(line2)
-        else
-          return false
-
-        var p
-        {
-
-          var v1 = v.clone()
-          var v2 = v.clone().multiplyScalar(-1)
-          var fs = [
-            [line1.start, v1, line2],
-            [line1.end,   v1, line2],
-            [line2.start, v2, line1],
-            [line2.end,   v2, line1]
-          ]
-          
-          var res = fs.map(f => {
-
-            ray.direction.copy(f[1])
-            ray.origin.copy(f[0])
-      
-            var pos = ray.intersectLine2(f[2], 'xz')
-            
-            if(!pos) return false
-      
-            return [pos.distanceTo(f[0]), f[1] === v1 ? pos.sub(f[0]) : f[0].clone().sub(pos)]
-      
-          }).filter(el => !!el)
-
-          var dist = res[0]
-          for(var i = 1; i < res.length; i++)
-            if(res[i][0] > dist[0]) {
-
-              dist = res[i]
-
-            }
-
-          p = dist[1]
-
-        }
-
-        if(!p) continue
-
-        p.x += point.x
-        p.y = 0
-        p.z += point.z
-        //add дополнительный отступ, что бы не было пересечения
-        p.add(v.clone().multiplyScalar(.001))
-
-        info = {
-          point: p
-        }
-        
-        break
-
-      }
-
-      if(!info) break
-
-      if(!o_info) {
-
-        o_info = info
-        o_o = o
-
-        continue
-
-      }
-
-      o_info = info
-      o_o = o
-
-      if(iter > 100) {
-
-        console.warn('iterible', iter)
-        return false
-
-      }
-
-    }
-
-    return iter > 0
-
-  }
-
   /**
    * Расчет передвижения обьекта
    * 
@@ -551,64 +304,20 @@ define(function(require) {
 
     }
 
-    // if(!walls.length) {
+    if(setFixedObjs(self, objs, intersect, v)) {
 
-      if(setFixedObjs(self.obj, objs, intersect, v)) {
+      walls = getInterestWalls(self, intersect)
 
-        walls = getInterestWalls(self, intersect)
+      if(!walls.length) {
 
-        if(!walls.length) {
+        self.obj.position.x = intersect.x
+        self.obj.position.z = intersect.z
 
-          self.obj.position.x = intersect.x
-          self.obj.position.z = intersect.z
-
-          return
-
-        }
+        return
 
       }
 
-    // }
-
-
-
-
-    // console.log(walls)
-
-    // TODO fixed recutsive
-
-    // var iter = 0
-    // while((
-    //   fixWallObj(self, intersect) || 
-    //   fixObjObjs(self.obj, self.objects, intersect)
-    // ) && iter < 10) {
-    //   iter++
-    // }
-
-    // if(iter > 8) console.warn('iter')
-
-    // var wo = fixWallObj(self, intersect)
-    // var oo = fixObjObjs(self.obj, self.objects, intersect)
-
-    // if(oo && wo) self.obj.position.copy(old)
-
-    // var recursive = function() {
-    //   iter++;
-    //   if(iter > 10) {
-    //     console.warn('iter')
-    //     return;
-    //   }
-
-    //   fixWallObj(self, intersect)
-    //   oo = fixObjObjs(self.obj, self.objects, intersect)
-      
-    //   if(oo) {
-    //     recursive()
-    //   }
-
-    // }
-
-    // if(oo || wo) recursive()
+    }
 
   }
 
@@ -619,8 +328,11 @@ define(function(require) {
 
   function BMControl({ scene, points = [], dom = document.body, ocontrol } = {}) {
 
-    this.room = new Room(points)
     this.objects = []
+    this.sizes = []
+    this.rects = []
+
+    this.room = new Room(points)
     this.events = {}
     this.obj = null
     this.move = false
@@ -654,6 +366,82 @@ define(function(require) {
      * иначе работает orbit
      */
     this.moveTimeout = null
+
+  }
+
+  BMControl.prototype.add = function() {
+
+    if(arguments.length > 1) {
+
+      for ( var i = 0; i < arguments.length; i ++ ) {
+
+        var info = arguments[i]
+
+        var obj = info, size = new THREE.Vector3, rect
+
+        if(Array.isArray(info)) {
+
+          obj = info[0]
+          size = info[1]
+
+        }
+
+        rect = new Rectangle().bindObject3d(obj, size)
+
+        var self = this
+        Object.defineProperty(obj.rotation, 'y', {
+          set: (function(value) {
+            // get from THREE https://github.com/mrdoob/three.js/blob/master/src/math/Euler.js
+            this.obj.rotation._y = value
+            this.obj.rotation.onChangeCallback()
+            // add custom
+            if(this.obj.userData.rectCacheRotY !== value) {
+              this.rect.setFromSizeAndAngle(
+                size.x,
+                size.z,
+                value
+              )
+              this.obj.userData.rectCacheRotY = this.obj.rotation.y
+            }
+          }).bind({obj, rect}),
+          get() {
+            return this._y
+          }
+        })
+
+        this.objects.push(obj)
+        this.sizes.push(size)
+        this.rects.push(rect)
+
+        obj.rotation.y = 0
+        obj.position.y = this.room._floor.position.y + size.y/2
+
+      }
+
+    }
+
+  }
+
+  BMControl.prototype.remove = function() {
+
+    if(arguments.length > 1) {
+
+      for ( var i = 0; i < arguments.length; i ++ ) {
+
+        var obj = arguments[i]
+        var idx = this.objects.indexOf(obj)
+
+        if(idx !== -1) {
+
+          this.objects.splice(idx, 1)
+          this.sizes.splice(idx, 1)
+          this.rects.splice(idx, 1)
+
+        }
+
+      }
+
+    }
 
   }
 

@@ -5,23 +5,23 @@
 
 define(function(require) {
 
-  var helper = require('./LinesHelper')
   var _Math = require('./../Math')
+  var helper = require('./LinesHelper')
   var SCOPE = require('./../global')
 
   var ray = new THREE.Ray
+  var box = new THREE.Box3
 
-  function Rectangle(points, position = new THREE.Vector3) {
+  function Rectangle(points) {
 
     this.lines = []
     for(var i = 0; i < 4; i++) 
       this.lines.push(new THREE.Line3(new THREE.Vector3, new THREE.Vector3))
 
+    this.position = new THREE.Vector3
+
     this.helper = new helper
     this.helper.setLines(this.lines)
-
-    this.setPosition(position)
-
     SCOPE.scene.add(this.helper)
 
     if(points) {
@@ -150,7 +150,7 @@ define(function(require) {
 
     return this
 
-  }
+  }position = new THREE.Vector3
 
   Rectangle.prototype.getPoints = function() {
 
@@ -180,18 +180,6 @@ define(function(require) {
   Rectangle.prototype.getWorldLines = function() {
 
     return this.getMovedLines(this.position)
-
-  }
-
-  Rectangle.prototype.setPosition = function(position) {
-
-    this.position = position
-
-    Object.defineProperty(this.helper, 'position', {
-      configurable: true,
-			enumerable: true,
-			value: position
-    })
 
   }
 
@@ -362,6 +350,27 @@ define(function(require) {
       vecs: res,
       points: points.map(p => p.clone().add(this.position))
     }
+
+  }
+
+  Rectangle.prototype.bindObject3d = function(obj, size) {
+
+    this.position = obj.position
+
+    if(!size || size.equals({x:0,y:0,z:0})) {
+
+      box.setFromObject(obj)
+      box.getSize(size)
+
+    }
+
+    Object.defineProperty(this.helper, 'position', {
+      configurable: true,
+			enumerable: true,
+			value: this.position
+    })
+
+    return this
 
   }
 

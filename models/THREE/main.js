@@ -22,7 +22,6 @@ define(function(require) {
     return v.clone().multiplyScalar(-1).equals(this)
   }
 
-  THREE.CubeMesh = require('./CubeMesh')
   THREE.LinesHelper = require('./LinesHelper')
   THREE.TextMesh = require('./TextMesh')
   THREE.DefaultScene = require('./DefaultScene')
