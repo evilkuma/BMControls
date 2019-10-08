@@ -150,7 +150,7 @@ define(function(require) {
 
     return this
 
-  }position = new THREE.Vector3
+  }
 
   Rectangle.prototype.getPoints = function() {
 

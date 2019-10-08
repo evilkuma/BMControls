@@ -22,13 +22,9 @@ define(function(require) {
     return v.clone().multiplyScalar(-1).equals(this)
   }
 
-  THREE.LinesHelper = require('./LinesHelper')
-  THREE.TextMesh = require('./TextMesh')
   THREE.DefaultScene = require('./DefaultScene')
-  // THREE.Room = require('./Room')
   THREE.BMControl = require('./BMControl')
   THREE.OrbitControls = require('./OrbitControls')
-  THREE.Rectangle = require('./Rectangle')
 
   var _Math = require('./../Math')
 
