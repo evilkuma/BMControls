@@ -17,10 +17,14 @@ define(function(require) {
   function findObject(self) {
 
     raycaster.setFromCamera( self.mouse, self.scene.camera ) 
-    var intersects = raycaster.intersectObjects( self.objects )
+    var intersects = raycaster.intersectObjects( self.objects, true )
 
-    if(intersects.length) 
+    if(intersects.length) {
+      while(intersects[0].object.parent !== self.objects[0].parent)
+        intersects[0].object = intersects[0].object.parent
+
       return intersects[0]
+    }
 
     return false
 
@@ -371,52 +375,48 @@ define(function(require) {
 
   BMControl.prototype.add = function() {
 
-    if(arguments.length > 1) {
+    for ( var i = 0; i < arguments.length; i ++ ) {
 
-      for ( var i = 0; i < arguments.length; i ++ ) {
+      var info = arguments[i]
 
-        var info = arguments[i]
+      var obj = info, size = new THREE.Vector3, rect
 
-        var obj = info, size = new THREE.Vector3, rect
+      if(Array.isArray(info)) {
 
-        if(Array.isArray(info)) {
-
-          obj = info[0]
-          size = info[1]
-
-        }
-
-        rect = new Rectangle().bindObject3d(obj, size)
-
-        var self = this
-        Object.defineProperty(obj.rotation, 'y', {
-          set: (function(value) {
-            // get from THREE https://github.com/mrdoob/three.js/blob/master/src/math/Euler.js
-            this.obj.rotation._y = value
-            this.obj.rotation.onChangeCallback()
-            // add custom
-            if(this.obj.userData.rectCacheRotY !== value) {
-              this.rect.setFromSizeAndAngle(
-                size.x,
-                size.z,
-                value
-              )
-              this.obj.userData.rectCacheRotY = this.obj.rotation.y
-            }
-          }).bind({obj, rect}),
-          get() {
-            return this._y
-          }
-        })
-
-        this.objects.push(obj)
-        this.sizes.push(size)
-        this.rects.push(rect)
-
-        obj.rotation.y = 0
-        obj.position.y = this.room._floor.position.y + size.y/2
+        obj = info[0]
+        size = info[1]
 
       }
+
+      rect = new Rectangle().bindObject3d(obj, size)
+
+      var self = this
+      Object.defineProperty(obj.rotation, 'y', {
+        set: (function(value) {
+          // get from THREE https://github.com/mrdoob/three.js/blob/master/src/math/Euler.js
+          this.obj.rotation._y = value
+          this.obj.rotation.onChangeCallback()
+          // add custom
+          if(this.obj.userData.rectCacheRotY !== value) {
+            this.rect.setFromSizeAndAngle(
+              size.x,
+              size.z,
+              value
+            )
+            this.obj.userData.rectCacheRotY = this.obj.rotation.y
+          }
+        }).bind({obj, rect}),
+        get() {
+          return this._y
+        }
+      })
+
+      this.objects.push(obj)
+      this.sizes.push(size)
+      this.rects.push(rect)
+
+      obj.rotation.y = 0
+      obj.position.y = this.room._floor.position.y + size.y/2
 
     }
 

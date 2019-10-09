@@ -6,8 +6,8 @@
 define(function(require) {
 
   var _Math = require('./../Math')
-  var helper = require('./LinesHelper')
-  var SCOPE = require('./../global')
+  // var helper = require('./LinesHelper')
+  // var SCOPE = require('./../global')
 
   var ray = new THREE.Ray
   var box = new THREE.Box3
@@ -20,9 +20,9 @@ define(function(require) {
 
     this.position = new THREE.Vector3
 
-    this.helper = new helper
-    this.helper.setLines(this.lines)
-    SCOPE.scene.add(this.helper)
+    // this.helper = new helper
+    // this.helper.setLines(this.lines)
+    // SCOPE.scene.add(this.helper)
 
     if(points) {
 
@@ -364,11 +364,12 @@ define(function(require) {
 
     }
 
-    Object.defineProperty(this.helper, 'position', {
-      configurable: true,
-			enumerable: true,
-			value: this.position
-    })
+    if(this.helper)
+      Object.defineProperty(this.helper, 'position', {
+        configurable: true,
+        enumerable: true,
+        value: this.position
+      })
 
     return this
 

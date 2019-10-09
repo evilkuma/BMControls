@@ -7,7 +7,7 @@
 
     SCOPE = global
 
-    // SCOPE.gui = new dat.GUI();
+    SCOPE.gui = new dat.GUI();
 
     run()
   
@@ -15,15 +15,21 @@
 
   var scene, bmcontrol, ocontrol
 
+  var box = new THREE.Box3
+
   function isMarked(obj) {
 
-    obj.geometry.computeBoundingBox()
-    var bound = obj.geometry.boundingBox.clone()
-    bound.min.x += -0.01
-    bound.min.y += 0.01
-    bound.min.z += -0.01
-    bound.max.addScalar(0.01)
-    var mark = new THREE.Box3Helper( bound )
+    box.setFromObject(obj)
+    var res = box.getSize(new THREE.Vector3)
+    box.max.sub(obj.position)
+    box.min.sub(obj.position)
+    box.min.x += -0.01
+    box.min.y += 0.01
+    box.min.z += -0.01
+    box.max.addScalar(0.01)
+
+    var mark = new THREE.Box3Helper( box.clone() )
+
     mark.visible = false
     mark.material.linewidth = 3
     obj.add(mark)
@@ -35,7 +41,22 @@
       }
     }
 
-    return obj
+    return res
+
+  }
+
+  function fixedOrigin(obj) {
+
+    box.setFromObject(obj)
+
+    var len = box.max.clone().sub(box.min)
+    var cmax = box.max.sub(len.divideScalar(2))
+
+    var res = new THREE.Group
+    res.add(obj)
+    obj.position.sub(cmax)
+
+    return res
 
   }
 
@@ -49,11 +70,11 @@
     bmcontrol = new THREE.BMControl({
       scene,
       points: [
-        new THREE.Vector3(-800, 0, 800),
-        new THREE.Vector3(-600, 0, -200),
-        new THREE.Vector3(0,  0, -800),
-        new THREE.Vector3(800,  0, -800),
-        new THREE.Vector3(800,  0, 800)
+        new THREE.Vector3(-80, 0, 80),
+        new THREE.Vector3(-60, 0, -20),
+        new THREE.Vector3(0,  0, -80),
+        new THREE.Vector3(80,  0, -80),
+        new THREE.Vector3(80,  0, 80)
       ],
       ocontrol
     })
@@ -71,28 +92,40 @@
       obj.mark()
     }
     
-    var boxes = []
+    var assets = [
+      { key: 'soldier', title: 'soldier' },
+      { key: 'bed', title: 'bed' },
+      { key: 'closet', title: 'closet' },
+      { key: 'table', title: 'table' },
+    ]
 
-    var material = new THREE.MeshPhongMaterial({ color: 'lightgreen', transparent: true, opacity: 0.5 })
-    var geometry = new THREE.BoxGeometry(100, 100, 200)
+    function loadMTL() {
+      // TODO: cached requests
+      new THREE.MTLLoader().setPath('assets/'+this+'/').load('OBJ.mtl', materials => {
+  
+        materials.preload();
+  
+        new THREE.OBJLoader().setMaterials(materials).setPath('assets/'+this+'/').load('OBJ.obj', obj => {
+  
+          obj = fixedOrigin(obj)
+  
+          scene.scene.add(obj)
     
-    boxes.push(
-      new THREE.Mesh(geometry, material),
-      new THREE.Mesh(geometry, material),
-      new THREE.Mesh(geometry, material),
-      new THREE.Mesh(geometry, material)
-    )
+          bmcontrol.add([obj, isMarked(obj)])
+  
+        })
+  
+      })
 
-    scene.scene.add(...boxes)
-    bmcontrol.add(...boxes)
+    }
 
-    boxes[0].position.x = 300
-    boxes[0].rotation.y = Math.PI/4
-    boxes[1].position.x = -300
-    boxes[3].position.z = -300
-    boxes[1].rotation.y = Math.PI/4
+    assets.forEach(a => {
 
-    boxes.forEach(b => isMarked(b))
+      a.load = loadMTL.bind(a.key)
+      var g = SCOPE.gui.add(a, 'load')
+      g.name(a.title)
+      
+    })
 
   }
 

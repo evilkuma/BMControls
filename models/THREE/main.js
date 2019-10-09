@@ -25,6 +25,8 @@ define(function(require) {
   THREE.DefaultScene = require('./DefaultScene')
   THREE.BMControl = require('./BMControl')
   THREE.OrbitControls = require('./OrbitControls')
+  THREE.OBJLoader = require('./OBJLoader')
+  THREE.MTLLoader = require('./MTLLoader')
 
   var _Math = require('./../Math')
 
