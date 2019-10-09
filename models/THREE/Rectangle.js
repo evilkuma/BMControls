@@ -212,6 +212,23 @@ define(function(require) {
 
   }
 
+  Rectangle.prototype.isInsidePoint = function(point, mv = this.position) {
+
+    var triangles = this.getTriangles()
+
+    for(var triangle of triangles) {
+
+      triangle = triangle.map(p => p.clone().add(mv))
+
+      if(_Math.pointInTriangle2(point, ...triangle, 'x', 'z'))
+        return true
+
+    }
+
+    return false
+
+  }
+
   Rectangle.prototype.getInsidePoint = function(rect) {
 
     var mv = rect.position.clone().sub(this.position)
@@ -288,7 +305,16 @@ define(function(require) {
       
     }
 
-    return crosses.length ? crosses : false
+    if(!crosses.length) {
+
+      if(this.isInsidePoint(rect.position, mv) || rect.isInsidePoint(mv))
+        return { point: null }
+
+      return false
+
+    }
+
+    return crosses
 
   }
 
