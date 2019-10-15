@@ -106,7 +106,9 @@ Room.prototype = Object.create(Object3D)
 
 Room.prototype.setWalls = function(points) {
 
-  this._walls.forEach(wall => wall.remove())
+  while(this._walls.length) this._walls[0].remove()
+
+  if(this._floor && this._floor.parent) this._floor.parent.remove(this._floor) 
 
   var geom = new Shape
 
@@ -132,4 +134,48 @@ Room.prototype.setWalls = function(points) {
 
 }
 
-export default Room
+Room.prototype.setWallsBySizes = function(info) {
+
+  var points = [new Vector3]
+
+  var point = points[0]
+
+  var max = [0, 0]
+  var min = [0, 0]
+
+  var fr = 0
+
+  for(var w of info) {
+
+    point = new Vector3(
+      point.x - Math.cos(Math.PI/180 * fr) * w.l,
+      0,
+      point.z - Math.sin(Math.PI / 180 * fr) * w.l
+    ).toFixed(1)
+
+    if(point.x < min[0]) min[0] = point.x
+    if(point.z < min[1]) min[1] = point.z
+    if(point.x > max[0]) max[0] = point.x
+    if(point.z > max[1]) max[1] = point.z
+
+    points.push(point)
+
+    fr += 180 - w.r
+
+  }
+
+  var center = {
+    x: (max[0] - min[0])/2 - max[0],
+    z: (max[1] - min[1])/2 - max[1],
+    y: 0
+  }
+
+  points.forEach(p => p.add(center))
+
+  this.setWalls(points)
+
+  return this
+
+}
+
+export { Room }

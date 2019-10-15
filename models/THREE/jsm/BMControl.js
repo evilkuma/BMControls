@@ -1,10 +1,12 @@
 
 import Room from './Room'
 import Rectangle from './Rectangle'
+import _Math from './Math'
 import { Raycaster } from 'three/src/core/Raycaster'
 import { Ray } from 'three/src/math/Ray'
 import { Vector2 } from 'three/src/math/Vector2'
 import { Vector3 } from 'three/src/math/Vector3'
+import { Plane } from 'three/src/math/Plane'
 import { Euler } from 'three/src/math/Euler'
 import { Line3 } from 'three/src/math/Line3'
 
@@ -22,10 +24,14 @@ var ray = new Ray
 function findObject(self) {
 
   raycaster.setFromCamera( self.mouse, self.scene.camera ) 
-  var intersects = raycaster.intersectObjects( self.objects )
+  var intersects = raycaster.intersectObjects( self.objects, true )
 
-  if(intersects.length) 
+  if(intersects.length) {
+    while(intersects[0].object.parent !== self.objects[0].parent)
+      intersects[0].object = intersects[0].object.parent
+
     return intersects[0]
+  }
 
   return false
 
@@ -326,6 +332,91 @@ function moveSelected(self) {
 
 }
 
+function findPosition(self, obj, rect) {
+
+  raycaster.setFromCamera( new Vector2, self.scene.camera )
+  
+  var wall, dist = false
+  var ndist = new Vector3
+
+  var cam_angle = new Vector2(raycaster.ray.direction.x, raycaster.ray.direction.z).normalize().multiplyScalar(-1).angle()
+
+  for(var i = 0; i < self.room._walls.length; i++) {
+
+    var w = self.room._walls[i]
+
+    if(Math.abs(new Vector2(w.rvec.x, w.rvec.z).normalize().angle() - cam_angle) > Math.PI/2)
+      continue
+
+    if(raycaster.ray.intersectPlane(w, ndist)) {
+
+      var len = ndist.sub(self.scene.camera.position).length()
+
+      if(!dist || len < dist) {
+        dist = len
+        wall = w
+      }
+
+    }
+
+  }
+
+  obj.rotation.y = new Vector2(0, 1).angle() - new Vector2(wall.rvec.x, wall.rvec.z).angle()
+  obj.position.set(wall.point1.x, obj.position.y, wall.point1.z)
+    .add(wall.vec.clone().multiplyScalar(rect.size.x/2))
+    .add(wall.rvec.clone().multiplyScalar(rect.size.y/2))
+
+  var pline = new Plane(wall.normal, wall.constant - rect.size.y + .1)
+  var line_points = []
+
+  for(var r of self.rects) {
+
+    if(r === rect) continue
+
+    var p
+    if(p = r.cross(pline))
+      line_points.push(p)
+
+  }
+
+  var tmp = wall.rvec.clone().multiplyScalar(.1)
+  line_points.forEach(p => { p[0].add(tmp); p[1].add(tmp) })
+
+  var opoints = [ obj.position.clone(), obj.position.clone() ]
+  var mv = wall.vec.clone().multiplyScalar(rect.size.x/2)
+  opoints[0].sub(mv)
+  opoints[1].add(mv)
+  var mv1 = wall.rvec.clone().multiplyScalar(rect.size.y/2)
+
+  for(var i = 0; i < line_points.length; i++) {
+
+    var points = line_points[i]
+
+    // TODO: проверять не вхождение точки в область, а пересечение областей
+    var bet1 = _Math.isBetweenPoints(opoints[0], ...points, wall.vec, 'x', 'z')
+    var bet2 = _Math.isBetweenPoints(opoints[1], ...points, wall.vec, 'x', 'z')
+    if(bet1 || bet2) {
+
+      var ch = opoints[1].clone().sub(opoints[0]).normalize()
+
+      if(ch.equals(wall.vec)) {
+        opoints[0] = points[1].sub(mv1)
+        opoints[1] = opoints[0].clone().add(mv.clone().multiplyScalar(1.9))
+      } else {
+        opoints[0] = points[0].sub(mv1)
+        opoints[1] = opoints[1].clone().add(mv.clone().multiplyScalar(1.9))
+      }
+      
+      line_points.splice(i, 1)
+      i = -1
+
+    }
+
+  }
+
+  obj.position.copy(opoints[0].add(mv))
+
+}
 
 /**
  * exorted Class BMControl
@@ -376,53 +467,51 @@ function BMControl({ scene, points = [], dom = document.body, ocontrol } = {}) {
 
 BMControl.prototype.add = function() {
 
-  if(arguments.length > 1) {
+  for ( var i = 0; i < arguments.length; i ++ ) {
 
-    for ( var i = 0; i < arguments.length; i ++ ) {
+    var info = arguments[i]
 
-      var info = arguments[i]
+    var obj = info, size = new Vector3, rect
 
-      var obj = info, size = new Vector3, rect
+    if(Array.isArray(info)) {
 
-      if(Array.isArray(info)) {
-
-        obj = info[0]
-        size = info[1]
-
-      }
-
-      rect = new Rectangle().bindObject3d(obj, size)
-
-      var self = this
-      Object.defineProperty(obj.rotation, 'y', {
-        set: (function(value) {
-          // get from THREE https://github.com/mrdoob/three.js/blob/master/src/math/Euler.js
-          this.obj.rotation._y = value
-          this.obj.rotation.onChangeCallback()
-          // add custom
-          if(this.obj.userData.rectCacheRotY !== value) {
-            this.rect.setFromSizeAndAngle(
-              size.x,
-              size.z,
-              value
-            )
-            this.obj.userData.rectCacheRotY = this.obj.rotation.y
-          }
-        }).bind({obj, rect}),
-        get() {
-          return this._y
-        }
-      })
-
-      this.objects.push(obj)
-      this.sizes.push(size)
-      this.rects.push(rect)
-
-      obj.rotation.y = 0
-      obj.position.y = this.room._floor.position.y + size.y/2
+      obj = info[0]
+      size = info[1]
 
     }
 
+    rect = new Rectangle().bindObject3d(obj, size)
+
+    var self = this
+    Object.defineProperty(obj.rotation, 'y', {
+      set: (function(value) {
+        // get from THREE https://github.com/mrdoob/three.js/blob/master/src/math/Euler.js
+        this.obj.rotation._y = value
+        this.obj.rotation.onChangeCallback()
+        // add custom
+        if(this.obj.userData.rectCacheRotY !== value) {
+          this.rect.setFromSizeAndAngle(
+            size.x,
+            size.z,
+            value
+          )
+          this.obj.userData.rectCacheRotY = this.obj.rotation.y
+        }
+      }).bind({obj, rect}),
+      get() {
+        return this._y
+      }
+    })
+
+    this.objects.push(obj)
+    this.sizes.push(size)
+    this.rects.push(rect)
+
+    obj.rotation.y = 0
+    obj.position.y = this.room._floor.position.y + size.y/2
+
+    findPosition(this, obj, rect)
+    
   }
 
 }
@@ -567,4 +656,4 @@ function mouseUp(e) {
 }
 
 //export
-export default BMControl
+export { BMControl }

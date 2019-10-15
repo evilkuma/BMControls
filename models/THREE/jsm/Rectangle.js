@@ -4,8 +4,6 @@
  * Math 
  */
 
-const THREE = {}
-
 import _Math from './Math'
 import { Ray } from 'three/src/math/Ray'
 import { Box3 } from 'three/src/math/Box3'
@@ -13,10 +11,76 @@ import { Line3 } from 'three/src/math/Line3'
 import { Vector2 } from 'three/src/math/Vector2'
 import { Vector3 } from 'three/src/math/Vector3'
 import { Euler } from 'three/src/math/Euler'
+import { Plane } from 'three/src/math/Plane'
 import { _Math as THREE } from 'three/src/math/Math'
 
 var ray = new Ray
 var box = new Box3
+
+function crossRectangles(rect1, rect2, mv) {
+
+  var lines1 = rect1.getMovedLines(mv)
+  var lines2 = rect2.getWorldLines()
+
+  var crosses = [], line1, line2
+
+  for(var i1 in lines1) {
+
+    line1 = lines1[i1]
+
+    for(var i2 in lines2) {
+
+      line2 = lines2[i2]
+
+      var isCross = _Math.lineCross2(line1, line2, 'x', 'z')
+
+      if(isCross) {
+
+        crosses.push({
+          point: isCross,
+          line1,
+          line2
+        })
+
+      }
+
+    }
+    
+  }
+
+  if(!crosses.length) {
+
+    if(rect1.isInsidePoint(rect2.position, mv) || rect2.isInsidePoint(mv))
+      return { point: null }
+
+    return false
+
+  }
+
+  return crosses
+
+}
+
+function crossRectLine(rect, line) {
+
+  var res = []
+  var lines = rect.getWorldLines()
+
+  lines.forEach(l => {
+    
+    var p = new Vector3
+
+    if(line.intersectLine(l, p) && !p.equals(l.start))
+      res.push(p)
+
+  })
+
+  if(res.length)
+    return res
+
+  return false
+
+}
 
 function Rectangle(points) {
 
@@ -150,6 +214,8 @@ Rectangle.prototype.setFromSizeAndAngle = function(l, h, rot) {
 
   this.setFromPoints(points)
 
+  this.size = {x: l, y: h}
+
   return this
 
 }
@@ -214,6 +280,23 @@ Rectangle.prototype.getTriangles = function() {
 
 }
 
+Rectangle.prototype.isInsidePoint = function(point, mv = this.position) {
+
+  var triangles = this.getTriangles()
+
+  for(var triangle of triangles) {
+
+    triangle = triangle.map(p => p.clone().add(mv))
+
+    if(_Math.pointInTriangle2(point, ...triangle, 'x', 'z'))
+      return true
+
+  }
+
+  return false
+
+}
+
 Rectangle.prototype.getInsidePoint = function(rect) {
 
   var mv = rect.position.clone().sub(this.position)
@@ -259,38 +342,15 @@ Rectangle.prototype.directionFromTriangles = function(v) {
   
 }
 
-Rectangle.prototype.cross = function(rect, mv = this.position) {
+Rectangle.prototype.cross = function(obj, mv = this.position) {
 
-  var lines1 = this.getMovedLines(mv)
-  var lines2 = rect.getWorldLines()
+  if(obj.constructor === Rectangle) 
+    return crossRectangles(this, obj, mv)
 
-  var crosses = [], line1, line2
+  if(obj.constructor === Plane)
+    return crossRectLine(this, obj)
 
-  for(var i1 in lines1) {
-
-    line1 = lines1[i1]
-
-    for(var i2 in lines2) {
-
-      line2 = lines2[i2]
-
-      var isCross = _Math.lineCross2(line1, line2, 'x', 'z')
-
-      if(isCross) {
-
-        crosses.push({
-          point: isCross,
-          line1,
-          line2
-        })
-
-      }
-
-    }
-    
-  }
-
-  return crosses.length ? crosses : false
+  return false
 
 }
 
@@ -313,7 +373,7 @@ Rectangle.prototype.localToWorld = function(obj) {
 
   var res
 
-  if(obj instanceof Line3) {
+  if(obj.constructor === Line3) {
 
     res = obj.clone()
     res.start.add(this.position)
@@ -379,4 +439,4 @@ Rectangle.prototype.clone = function() {
 
 }
 
-export default Rectangle
+export { Rectangle }
