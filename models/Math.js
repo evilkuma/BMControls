@@ -1,4 +1,22 @@
 
+function getVZ(VX, VY) {
+
+  if(VX === 'x')
+    if(VY === 'y') return 'z'
+    else return 'y'
+
+  if(VX === 'y')
+    if(VY === 'x') return 'z'
+    else return 'x'
+
+  if(VX === 'z')
+    if(VY === 'x') return 'y'
+    else return 'x'
+
+  return false
+
+}
+
 /**
  * наличие пересечения линий в плоскости XZ
  */
@@ -95,6 +113,33 @@ function pointInTriangle2(p, p1, p2, p3, VX = 'x', VY = 'y') {
 
 }
 
+function isBetweenPoints(p, p1, p2, v, VX = 'x', VY = 'y') {
+  
+  var rot = new THREE.Euler
+  rot[getVZ(VX, VY)] = Math.PI/2
+
+  var rv = v.clone().applyEuler(rot).toFixed().multiplyScalar(10)
+
+  var v1 = p
+  var v2 = v.clone().multiplyScalar(10).add(p)
+  var v3 = p1
+  var v4 = p1.clone().add(rv)
+
+  var pp1 = linesCrossPoint2(v1, v2, v3, v4, VX, VY)
+  var vec1 = pp1.clone().sub(v1).normalize()
+
+  v3 = p2
+  v4 = p2.clone().add(rv)
+
+  var pp2 = linesCrossPoint2(v1, v2, v3, v4, VX, VY)
+  var vec2 = pp2.clone().sub(v1).normalize()
+
+  // при точном расчете было бы 0 если за пределами и Math.PI - в пределах.
+  // но так как это JS и тут триллион округлений, условия менее конкретное
+  return vec1.angleTo(vec2) > 1
+
+}
+
 define(function(require) {
 
   return {
@@ -102,7 +147,8 @@ define(function(require) {
     isCrossLines2,
     linesCrossPoint2,
     lineCross2,
-    pointInTriangle2
+    pointInTriangle2,
+    isBetweenPoints
 
   }
 

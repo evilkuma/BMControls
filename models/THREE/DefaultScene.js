@@ -18,9 +18,16 @@ define(function(require) {
 
     this.scene.add(new THREE.AmbientLight( 0x404040, 0.7 ))
 
-    var light = new THREE.PointLight( 0xffffff, 0.7, 1000 );
-    light.position.set(0, 40, 0)
-    this.scene.add( light );
+    var lights = [];
+    lights[ 0 ] = new THREE.PointLight( 0xffffff, 1, 400 );
+    lights[ 1 ] = new THREE.PointLight( 0xffffff, 1, 400 );
+    lights[ 2 ] = new THREE.PointLight( 0xffffff, 1, 400 );
+
+    lights[ 0 ].position.set( 0, 200, 0 );
+    lights[ 1 ].position.set( 100, 200, 100 );
+    lights[ 2 ].position.set( - 100, - 200, - 100 );
+
+    this.scene.add( ...lights );
 
     // --------------
 
