@@ -4,6 +4,9 @@ define(function(require) {
   // load custom THREE modules
   require('./THREE/main')
 
-  return require('./global')
+  return {
+    global: require('./global'),
+    rooms: require('./rooms')
+  }
 
 })

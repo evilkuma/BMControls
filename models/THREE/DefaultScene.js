@@ -7,7 +7,7 @@ define(function(require) {
     this.scene.background = new THREE.Color(0x222222)
 
     this.camera = new THREE.PerspectiveCamera( 75, element.clientWidth/element.clientHeight, 0.1, 1000000 )
-    this.camera.position.set(0, 120, 0)
+    this.camera.position.set(0, 180, 0)
     this.camera.lookAt(this.scene.position)
 
     this.renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});

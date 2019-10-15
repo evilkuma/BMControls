@@ -2,10 +2,12 @@
 (function() {
 
   var SCOPE
+  var ROOMS
 
-  requirejs(['./models/main'], function(global) {
+  requirejs(['./models/main'], function(data) {
 
-    SCOPE = global
+    SCOPE = data.global
+    ROOMS = data.rooms
 
     SCOPE.gui = new dat.GUI();
 
@@ -69,16 +71,16 @@
 
     bmcontrol = new THREE.BMControl({
       scene,
-      points: [
-        new THREE.Vector3(-80, 0, 80),
-        new THREE.Vector3(-60, 0, -20),
-        new THREE.Vector3(0,  0, -80),
-        new THREE.Vector3(80,  0, -80),
-        new THREE.Vector3(80,  0, 80)
-      ],
       ocontrol
     })
-    scene.scene.add(bmcontrol.room._floor)
+
+    var loadRoom = function() {
+      bmcontrol.room.setWallsBySizes(this)
+      scene.scene.add(bmcontrol.room._floor)
+    }
+
+    var rooms = SCOPE.gui.addFolder('Помещение')
+    ROOMS.forEach(r => rooms.add({ load: loadRoom.bind(r.data) }, 'load').name(r.caption))
 
     bmcontrol.events.onview = function(obj, objs) {
       objs.forEach(o => o.mark())
