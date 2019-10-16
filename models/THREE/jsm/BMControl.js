@@ -1,7 +1,7 @@
 
-import Room from './Room'
-import Rectangle from './Rectangle'
-import _Math from './Math'
+import { Room } from './Room'
+import { Rectangle } from './Rectangle'
+import * as _Math from './Math'
 import { Raycaster } from 'three/src/core/Raycaster'
 import { Ray } from 'three/src/math/Ray'
 import { Vector2 } from 'three/src/math/Vector2'
@@ -518,20 +518,16 @@ BMControl.prototype.add = function() {
 
 BMControl.prototype.remove = function() {
 
-  if(arguments.length > 1) {
+  for ( var i = 0; i < arguments.length; i ++ ) {
 
-    for ( var i = 0; i < arguments.length; i ++ ) {
+    var obj = arguments[i]
+    var idx = this.objects.indexOf(obj)
 
-      var obj = arguments[i]
-      var idx = this.objects.indexOf(obj)
+    if(idx !== -1) {
 
-      if(idx !== -1) {
-
-        this.objects.splice(idx, 1)
-        this.sizes.splice(idx, 1)
-        this.rects.splice(idx, 1)
-
-      }
+      this.objects.splice(idx, 1)
+      this.sizes.splice(idx, 1)
+      this.rects.splice(idx, 1)
 
     }
 

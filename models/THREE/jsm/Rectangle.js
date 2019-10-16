@@ -4,7 +4,7 @@
  * Math 
  */
 
-import _Math from './Math'
+import * as _Math from './Math'
 import { Ray } from 'three/src/math/Ray'
 import { Box3 } from 'three/src/math/Box3'
 import { Line3 } from 'three/src/math/Line3'
