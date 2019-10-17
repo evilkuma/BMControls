@@ -76,11 +76,14 @@
 
     var loadRoom = function() {
       bmcontrol.room.setWallsBySizes(this)
-      scene.scene.add(bmcontrol.room._floor)
+      scene.scene.add(bmcontrol.room)
     }
 
     var rooms = SCOPE.gui.addFolder('Помещение')
+    SCOPE.room_sizes = SCOPE.gui.addFolder('Размеры стен')
     ROOMS.forEach(r => rooms.add({ load: loadRoom.bind(r.data) }, 'load').name(r.caption))
+
+    SCOPE.gui.add(bmcontrol.room, 'getSizes')
 
     bmcontrol.events.onview = function(obj, objs) {
       objs.forEach(o => o.mark())
