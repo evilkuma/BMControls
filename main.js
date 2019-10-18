@@ -69,6 +69,8 @@
 
     ocontrol = new THREE.OrbitControls(scene.camera, scene.renderer.domElement)
 
+    scene.ocontrol = ocontrol
+
     bmcontrol = new THREE.BMControl({
       scene,
       ocontrol

@@ -3,16 +3,18 @@ define(function(require) {
 
   function sizesToPoints(info) {
 
-    var points = []
+    var points = [new THREE.Vector3]
 
-    var point = new THREE.Vector3
+    var point = points[0]
 
     var max = [0, 0]
     var min = [0, 0]
 
     var fr = 0
 
-    for(var w of info) {
+    for(var i = 0; i < info.length - 1; i++) {
+
+      var w = info[i]
 
       point = new THREE.Vector3(
         point.x - Math.cos(Math.PI/180 * fr) * w.l,
@@ -55,6 +57,22 @@ define(function(require) {
 
     this.parent = parent
 
+    this._l = 2
+
+    this.mesh = new THREE.Mesh(new THREE.BufferGeometry, new THREE.MeshPhongMaterial( { color: 0x074c24 } ))
+    var l2 = this._l/2
+    var vert = new Float32Array( [
+      -l2, 0, 0,
+       l2, 0, 0,
+       l2, 300, 0,
+    
+       l2, 300, 0,
+      -l2, 300, 0,
+      -l2, 0, 0
+    ] );
+    this.mesh.geometry.addAttribute('position', new THREE.BufferAttribute(vert, 3))
+    this.mesh.geometry.computeVertexNormals()
+
     if(point1 && point2) {
 
       this.setFromPoints(point1, point2)
@@ -72,23 +90,10 @@ define(function(require) {
 
     var sub = point2.clone().sub(point1)
 
-    this._l = sub.length()
+    this.l = sub.length()
     this.vec = sub.clone().normalize()
     this.rvec = this.vec.clone().applyEuler(new THREE.Euler(0, -Math.PI/2, 0)).toFixed()
 
-    this.mesh = new THREE.Mesh(new THREE.BufferGeometry, new THREE.MeshPhongMaterial( { color: 0x074c24 } ))
-    var l2 = this._l/2
-    var vert = new Float32Array( [
-      -l2, 0, 0,
-       l2, 0, 0,
-       l2, 300, 0,
-    
-       l2, 300, 0,
-      -l2, 300, 0,
-      -l2, 0, 0
-    ] );
-    this.mesh.geometry.addAttribute('position', new THREE.BufferAttribute(vert, 3))
-    this.mesh.geometry.computeVertexNormals()
     this.mesh.rotation.y = 2*Math.PI - new THREE.Vector2(this.vec.x, this.vec.z).angle()
 
     this.position = this.mesh.position.copy(point2).add(point1).divideScalar(2)
@@ -109,7 +114,7 @@ define(function(require) {
 
     this.rot = Math.atan((point2.z - point1.z)/(point2.x - point1.x))
 
-    if(SCOPE.room_sizes) {
+    if(SCOPE.room_sizes && !this.gui) {
 
       var self = this
       this.gui = SCOPE.room_sizes.add({
@@ -171,7 +176,7 @@ define(function(require) {
     var sin = Math.abs(Math.sin(this.mesh.rotation.y).toFixed(10))
 
     var diffX = Math.round(cos * diff)
-    var diffY = Math.rousetFromPointsnd(sin * diff)
+    var diffY = Math.round(sin * diff)
 
     if (this.mesh.rotation.y < PI / 2) {
       intervals.push(
@@ -242,7 +247,17 @@ define(function(require) {
       }
     }
 
-    // update floor
+    var points = sizesToPoints(this.parent.getSizes())
+    for(var i in this.parent._walls) {
+
+      var p1 = points[i]
+      var p2 = points[+i+1 === points.length ? 0 : +i+1]
+
+      this.parent._walls[i].setFromPoints(p1, p2)
+
+    }
+
+    this.parent.updateFloor()
 
   }
 
@@ -304,10 +319,6 @@ define(function(require) {
 
     while(this._walls.length) this._walls[0].remove()
 
-    if(this._floor && this._floor.parent) this._floor.parent.remove(this._floor) 
-
-    var geom = new THREE.Shape
-
     for(var i = 0; i < points.length; i++) {
 
       var point1 = points[i]
@@ -317,20 +328,9 @@ define(function(require) {
       this._walls.push(wall)
       this.add(wall.mesh)
 
-      geom.lineTo(point1.x, -point1.z)
-
     }
 
-    geom.lineTo(points[0].x, -points[0].z)
-
-    this._floor = new THREE.Mesh(
-      new THREE.ShapeGeometry(geom),
-      new THREE.MeshPhongMaterial( { color: 0x074c24 } )
-    )
-
-    this._floor.rotation.x = -Math.PI/2
-
-    this.add(this._floor)
+    this.updateFloor()
 
   }
 
@@ -344,29 +344,53 @@ define(function(require) {
 
   Room.prototype.getSizes = function() {
 
-    // TODO
-
     var res = []
 
-    for(var wall of this._walls) {
+    for(var wall1 of this._walls) {
 
-      var wall1 = wall.getPrevWall()
+      var wall = wall1.getNextWall()
 
-      var r = THREE.Math.euclideanModulo((wall.mesh.rotation.y + Math.PI) - wall1.mesh.rotation.y, Math.PI*2) *180/Math.PI
+      var vm = wall1.normal.clone().add(wall.normal).normalize()
+
+      var v1 = wall1.vec.clone().multiplyScalar(-1)
+      var v2 = wall.vec
+
+      var r = v1.angleTo(vm) + v2.angleTo(vm)
 
       res.push({ 
-        l: wall.l, 
-        r
+        l: wall1.l, 
+        r: r * 180/Math.PI
       })
 
     }
 
-    this.setWallsBySizes(res)
-
-    console.log(res)
-
     return res
 
+  }
+
+  Room.prototype.updateFloor = function() {
+
+    if(this._floor && this._floor.parent) this._floor.parent.remove(this._floor) 
+
+    var geom = new THREE.Shape
+
+    for(var wall of this._walls) {
+
+      geom.lineTo(wall.point1.x, -wall.point1.z)
+
+    }
+
+    geom.lineTo(wall.point2.x, -wall.point2.z)
+
+    this._floor = new THREE.Mesh(
+      new THREE.ShapeGeometry(geom),
+      new THREE.MeshPhongMaterial( { color: 0x074c24 } )
+    )
+
+    this._floor.rotation.x = -Math.PI/2
+
+    this.add(this._floor)
+    
   }
 
   return Room
