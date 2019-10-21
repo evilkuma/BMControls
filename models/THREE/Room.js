@@ -73,6 +73,20 @@ define(function(require) {
     this.mesh.geometry.addAttribute('position', new THREE.BufferAttribute(vert, 3))
     this.mesh.geometry.computeVertexNormals()
 
+    this.mesh1 = new THREE.Mesh(new THREE.BufferGeometry, new THREE.MeshBasicMaterial( { color: 0x074c24 } ))
+    var vert = new Float32Array( [
+      -l2, 0, 0,
+       l2, 0, 0,
+       l2, 0, -20,
+    
+       l2, 0, -20,
+      -l2, 0, -20,
+      -l2, 0, 0
+    ] )
+    this.mesh1.geometry.addAttribute('position', new THREE.BufferAttribute(vert, 3))
+    this.mesh1.geometry.computeVertexNormals()
+    this.mesh1.visible = false
+
     if(point1 && point2) {
 
       this.setFromPoints(point1, point2)
@@ -95,8 +109,11 @@ define(function(require) {
     this.rvec = this.vec.clone().applyEuler(new THREE.Euler(0, -Math.PI/2, 0)).toFixed()
 
     this.mesh.rotation.y = 2*Math.PI - new THREE.Vector2(this.vec.x, this.vec.z).angle()
+    this.mesh1.rotation.y = this.mesh.rotation.y
 
     this.position = this.mesh.position.copy(point2).add(point1).divideScalar(2)
+    this.mesh1.position.copy(this.position)
+    this.mesh1.position.y = 300
 
     this.setFromNormalAndCoplanarPoint(this.rvec, this.position)
 
@@ -150,6 +167,7 @@ define(function(require) {
     this.parent._walls.splice(idx, 1)
     if(this.gui) this.gui.remove()
     if(this.mesh && this.mesh.parent) this.mesh.parent.remove(this.mesh)
+    if(this.mesh1 && this.mesh1.parent) this.mesh1.parent.remove(this.mesh1)
 
   }
 
@@ -261,6 +279,204 @@ define(function(require) {
 
   }
 
+  Wall.prototype.toPosition = function(position) {
+
+    var points = []
+
+    if ( (this.mesh.rotation.y - Math.PI/2) % Math.PI ) {
+
+      var tan1 = Math.tan(this.mesh.rotation.y)
+      var b1 = -position.z - tan1 * position.x
+
+      { // prev wall
+
+        var wall = this.getPrevWall()
+        var tan2 = Math.tan(wall.mesh.rotation.y)
+        var b2 = -wall.mesh.position.z - tan2 * wall.mesh.position.x
+
+        var x = (b2 - b1) / (tan1 - tan2)
+        var y = tan1 * x + b1
+
+        var cos = Math.cos(wall.mesh.rotation.y)
+        var sin = Math.sin(wall.mesh.rotation.y)
+
+        var move = [
+          x - (wall.mesh.position.x + cos * wall.l / 2),
+          y + (wall.mesh.position.z - sin * wall.l / 2)
+        ]
+
+        if (move[0] < 0.001 && move[0] > -0.001) move[0] = 0
+        if (move[1] < 0.001 && move[1] > -0.001) move[1] = 0
+
+        wall.mesh.position.x += move[0] / 2
+        wall.mesh.position.z -= move[1] / 2
+
+        wall.mesh1.position.x += move[0] / 2
+        wall.mesh1.position.z -= move[1] / 2
+
+        var l = 0
+        if(cos > 0.001 || cos < -0.001) l = move[0] / cos
+        else
+        if(sin > 0.001 || sin < -0.001) l = move[1] / sin
+
+        wall.l += +l.toFixed(0)
+
+        wall.point2.x = x
+        wall.point2.z = -y
+
+        points.push([x, y])
+
+      }
+      { // next wall
+        
+        var wall = this.getNextWall()
+        var tan2 = Math.tan(wall.mesh.rotation.y)
+        var b2 = -wall.mesh.position.z - tan2 * wall.mesh.position.x
+
+        var x = (b2 - b1) / (tan1 - tan2)
+        var y = tan1 * x + b1
+
+        var cos = Math.cos(wall.mesh.rotation.y)
+        var sin = Math.sin(wall.mesh.rotation.y)
+
+        var move = [
+          +(x - (wall.mesh.position.x - cos * wall.l / 2)).toFixed(10),
+          +(y + (wall.mesh.position.z + sin * wall.l / 2)).toFixed(10)
+        ]
+
+        if (move[0] < 0.001 && move[0] > -0.001) move[0] = 0
+        if (move[1] < 0.001 && move[1] > -0.001) move[1] = 0
+
+        wall.mesh.position.x += move[0] / 2
+        wall.mesh.position.z -= move[1] / 2
+        wall.mesh1.position.x += move[0] / 2
+        wall.mesh1.position.z -= move[1] / 2
+
+        var l = 0
+        if(cos > 0.001 || cos < -0.001) l = move[0] / cos
+        else
+        if(sin > 0.001 || sin < -0.001) l = move[1] / sin
+
+        wall.l -= +l.toFixed(0)
+        
+        wall.point1.x = x
+        wall.point1.z = -y
+
+        points.push([x, y])
+
+      }
+
+      sph1.position.set(points[0][0], 400, -points[0][1])
+      sph2.position.set(points[1][0], 400, -points[1][1])
+
+
+    } else {
+      /*
+      * обработка исключения, когда стена паралельна оси Z (Y) т.е. 90, 270 ... градусов
+      * бикоз в таких случаях тангенс равен бесконечности (по сути не существует)
+      * */
+
+      // TODO fixed this
+
+      { // prev wall
+
+        var wall = this.getPrevWall()
+        var tan2 = Math.tan(wall.mesh.rotation.y)
+        var b2 = -wall.mesh.position.z - tan2 * wall.mesh.position.x
+        
+        var x = position.x
+        var y = tan2 * x + b2
+
+        var cos = Math.cos(wall.mesh.rotation.y)
+        var sin = Math.sin(wall.mesh.rotation.y)
+
+        var move = [
+          x - (wall.mesh.position.x + cos * wall.l / 2),
+          y + (wall.mesh.position.z - sin * wall.l / 2)
+        ]
+
+        if (move[0] < 0.001 && move[0] > -0.001) move[0] = 0
+        if (move[1] < 0.001 && move[1] > -0.001) move[1] = 0
+
+        wall.mesh.position.x += move[0] / 2
+        wall.mesh.position.z -= move[1] / 2
+        wall.mesh1.position.x += move[0] / 2
+        wall.mesh1.position.z -= move[1] / 2
+
+        var l = 0
+        if(cos > 0.001 || cos < -0.001) l = move[0] / cos
+        else
+        if(sin > 0.001 || sin < -0.001) l = move[1] / cos
+
+        wall.l += +l.toFixed(0)
+
+        wall.point2.x = x
+        wall.point2.z = -y
+
+        points.push([x, y])
+
+      }
+      { // next wall
+
+        var wall = this.getNextWall()
+        var tan2 = Math.tan(wall.mesh.rotation.y)
+        var b2 = -wall.mesh.rotation.z - tan2 * wall.mesh.position.x
+
+        var x = position.x
+        var y = tan2 * x + b2
+
+        var cos = Math.cos(wall.mesh.rotation.y)
+        var sin = Math.sin(wall.mesh.rotation.y)
+
+        var move = [
+          x - (wall.mesh.position.x - cos * wall.l / 2),
+          y + (wall.mesh.position.z + sin * wall.l / 2)
+        ]
+
+        if (move[0] < 0.001 && move[0] > -0.001) move[0] = 0
+        if (move[1] < 0.001 && move[1] > -0.001) move[1] = 0
+
+        wall.mesh.position.x += move[0] / 2
+        wall.mesh.position.z -= move[1] / 2
+        wall.mesh1.position.x += move[0] / 2
+        wall.mesh1.position.z -= move[1] / 2
+
+        var l = 0
+        if(cos > 0.001 || cos < -0.001) l = move[0] / cos
+        else
+        if(sin > 0.001 || sin < -0.001) l = move[1] / sin
+
+        wall.l -= +l.toFixed(0)
+
+        wall.point1.x = x
+        wall.point1.z = -y
+
+        points.push([x, y])
+
+      }
+
+    }
+
+    this.point1.x = points[0][0]
+    this.point1.z = -points[0][1]
+    this.point2.x = points[1][0]
+    this.point2.z = -points[1][1]
+
+    var len = Math.sqrt(Math.pow(points[0][0] - points[1][0], 2) + Math.pow(points[0][1] - points[1][1], 2))
+    var x = points[1][0] + (points[0][0] - points[1][0]) / 2
+    var y = points[1][1] + (points[0][1] - points[1][1]) / 2
+
+    this.l = +len.toFixed(0)
+
+    this.position.x = x
+    this.position.z = -y
+    this.mesh1.position.x = x
+    this.mesh1.position.z = -y
+
+    this.parent.updateFloor()
+
+  }
+
   Object.defineProperties(Wall.prototype, {
 
     l: {
@@ -273,9 +489,14 @@ define(function(require) {
 
       set: function(value) {
 
-        this.mesh.geometry.scale(1/(this._l/value), 1, 1)
+        var scale = 1/(this._l/value)
+
+        this.mesh.geometry.scale(scale, 1, 1)
+        this.mesh1.geometry.scale(scale, 1, 1)
 
         this._l = value
+        
+        if(this.gui) this.gui.updateDisplay()
 
       }
 
@@ -311,6 +532,8 @@ define(function(require) {
 
     }
 
+    SCOPE.gui.add(this, 'showY')
+
   }
 
   Room.prototype = Object.create(THREE.Object3D.prototype)
@@ -326,7 +549,7 @@ define(function(require) {
 
       var wall = new Wall(this, point1, point2)
       this._walls.push(wall)
-      this.add(wall.mesh)
+      this.add(wall.mesh, wall.mesh1)
 
     }
 
@@ -391,6 +614,18 @@ define(function(require) {
 
     this.add(this._floor)
     
+  }
+
+  Room.prototype.showY = function(is = !this._walls[0].mesh1.visible) {
+
+    is = !!is
+    
+    for(var wall of this._walls) {
+
+      wall.mesh1.visible = is
+
+    }
+
   }
 
   return Room

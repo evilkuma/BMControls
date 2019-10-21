@@ -15,7 +15,7 @@
   
   });
 
-  var scene, bmcontrol, ocontrol
+  var scene, bmcontrol, ocontrol, rmcontrol
 
   var box = new THREE.Box3
 
@@ -76,6 +76,10 @@
       ocontrol
     })
 
+    rmcontrol = new THREE.RoomControls({scene, room: bmcontrol.room, ocontrol})
+    
+    SCOPE.gui.add({editWalls() { rmcontrol.enable(true) }}, 'editWalls')
+
     var loadRoom = function() {
       bmcontrol.room.setWallsBySizes(this)
       scene.scene.add(bmcontrol.room)
@@ -98,7 +102,12 @@
     bmcontrol.events.onunselected = function(obj, objs) {
       obj.mark()
     }
+
+    window.sph1 = new THREE.Mesh(new THREE.SphereGeometry(3), new THREE.MeshBasicMaterial({color: 'red'}))
+    window.sph2 = new THREE.Mesh(new THREE.SphereGeometry(3), new THREE.MeshBasicMaterial({color: 'blue'}))
     
+    scene.scene.add(sph1, sph2)
+
     var assets = [
       { key: 'soldier', title: 'soldier' },
       { key: 'bed', title: 'bed' },

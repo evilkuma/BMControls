@@ -39,6 +39,14 @@ define(function(require) {
         }).bind({i: +i+1})
       }, 'toggle').name(sides[i])
 
+    var cam_gui = gui.addFolder('тип камеры')
+    cam_gui.add({ perspective() {
+      self.setCamera('perspectivecamera')
+    } }, 'perspective')
+    cam_gui.add({ orthographic() {
+      self.setCamera('orthographiccamera')
+    } }, 'orthographic')
+
     this.scene = new THREE.Scene
     this.scene.background = new THREE.Color(0x222222)
 
@@ -133,11 +141,11 @@ define(function(require) {
 
     switch(type.toLowerCase()) {
       case 'perspectivecamera':
-        this.camera = new PerspectiveCamera(75, parentElement.clientWidth/parentElement.clientHeight, 0.1, 1000000)
+        this.camera = new THREE.PerspectiveCamera(75, parentElement.clientWidth/parentElement.clientHeight, 0.1, 1000000)
         this.camera.position.z = 100
         break;
       case 'orthographiccamera':
-        this.camera = new OrthographicCamera(
+        this.camera = new THREE.OrthographicCamera(
           -parentElement.clientWidth,
           parentElement.clientWidth,
           parentElement.clientHeight,
