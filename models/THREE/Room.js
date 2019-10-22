@@ -50,8 +50,10 @@ define(function(require) {
    */
 
   var SCOPE = require('./../global')
+  
+  var SizeLine = require('./SizeLine')
 
-  function Wall(parent, point1, point2) {
+  function Wall(parent, point1, point2, caption = 'A') {
 
     this.constructor()
 
@@ -86,6 +88,10 @@ define(function(require) {
     this.mesh1.geometry.computeVertexNormals()
     this.mesh1.visible = false
 
+    this.line = new SizeLine({ l: this._l, w: 10 , text:'(' + caption + ')' })
+    this.line.rotation.z = Math.PI / 2
+    this.line.visible = false    
+
     if(point1 && point2) {
 
       this.setFromPoints(point1, point2)
@@ -109,12 +115,15 @@ define(function(require) {
 
     this.mesh.rotation.y = 2*Math.PI - new THREE.Vector2(this.vec.x, this.vec.z).angle()
     this.mesh1.rotation.y = this.mesh.rotation.y
+    this.line.rotation.y = this.mesh.rotation.y
 
     this.position = this.mesh.position.copy(point2).add(point1).divideScalar(2)
     this.mesh1.position.copy(this.position)
     this.mesh1.position.y = 300
 
     this.setFromNormalAndCoplanarPoint(this.rvec, this.position)
+
+    this.line.position.copy(this.mesh1.position).add(this.normal.clone().multiplyScalar(-25))
 
     this.max = new THREE.Vector3(
       Math.max(point1.x, point2.x), 
@@ -167,6 +176,7 @@ define(function(require) {
     if(this.gui) this.gui.remove()
     if(this.mesh && this.mesh.parent) this.mesh.parent.remove(this.mesh)
     if(this.mesh1 && this.mesh1.parent) this.mesh1.parent.remove(this.mesh1)
+    if(this.line && this.line.parent) this.line.parent.remove(this.line)
 
   }
 
@@ -313,6 +323,8 @@ define(function(require) {
         wall.mesh1.position.x += move[0] / 2
         wall.mesh1.position.z -= move[1] / 2
 
+        wall.line.position.copy(wall.mesh1.position).add(wall.normal.clone().multiplyScalar(-25))
+
         wall.point2.x = x
         wall.point2.z = -y
 
@@ -343,8 +355,11 @@ define(function(require) {
 
         wall.mesh.position.x += move[0] / 2
         wall.mesh.position.z -= move[1] / 2
+
         wall.mesh1.position.x += move[0] / 2
         wall.mesh1.position.z -= move[1] / 2
+
+        wall.line.position.copy(wall.mesh1.position).add(wall.normal.clone().multiplyScalar(-25))
         
         wall.point1.x = x
         wall.point1.z = -y
@@ -386,6 +401,8 @@ define(function(require) {
 
         wall.mesh1.position.x += move[0] / 2
         wall.mesh1.position.z -= move[1] / 2
+
+        wall.line.position.copy(wall.mesh1.position).add(wall.normal.clone().multiplyScalar(-25))
         
         wall.point2.x = x
         wall.point2.z = -y
@@ -417,8 +434,11 @@ define(function(require) {
 
         wall.mesh.position.x += move[0] / 2
         wall.mesh.position.z -= move[1] / 2
+
         wall.mesh1.position.x += move[0] / 2
         wall.mesh1.position.z -= move[1] / 2
+
+        wall.line.position.copy(wall.mesh1.position).add(wall.normal.clone().multiplyScalar(-25))
 
         wall.point1.x = x
         wall.point1.z = -y
@@ -447,7 +467,19 @@ define(function(require) {
     this.mesh1.position.x = x
     this.mesh1.position.z = -y
 
+    this.line.position.copy(this.mesh1.position).add(this.normal.clone().multiplyScalar(-25))
+
     this.parent.updateFloor()
+
+  }
+
+  Wall.prototype.getFullMesh = function() {
+
+    var res = new THREE.Object3D
+
+    res.add(this.mesh, this.mesh1, this.line)
+
+    return res
 
   }
 
@@ -467,6 +499,7 @@ define(function(require) {
 
         this.mesh.scale.x = value
         this.mesh1.scale.x = value
+        this.line.l = value
 
         this._l = value
         
@@ -521,9 +554,9 @@ define(function(require) {
       var point1 = points[i]
       var point2 = points[i+1 === points.length ? 0 : i+1]
 
-      var wall = new Wall(this, point1, point2)
+      var wall = new Wall(this, point1, point2, 'A')
       this._walls.push(wall)
-      this.add(wall.mesh, wall.mesh1)
+      this.add(wall.getFullMesh())
 
     }
 
@@ -599,6 +632,7 @@ define(function(require) {
     for(var wall of this._walls) {
 
       wall.mesh1.visible = is
+      wall.line.visible = is
 
     }
 

@@ -13,18 +13,30 @@ define(function(require) {
 
     this.constructor(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }))
 
-    this.scale.set(1, 0.25, 1) // 512x128
+    this.scale.set(36, 9, 1) // 512x128
 
     this.ctx = ctx
     this.color = color
-    this.setText(text)
+    this.text = text
   }
+
   TextMesh.prototype = Object.create(THREE.Sprite.prototype)
-  TextMesh.prototype.setText = function(text) {
-    this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height)
-    this.ctx.fillText(text, this.ctx.canvas.width / 2, 0)
-    this.material.map.needsUpdate = true
-  };
+
+  Object.defineProperties(TextMesh.prototype, {
+
+    text: {
+
+      set(value) {
+
+        this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height)
+        this.ctx.fillText(value, this.ctx.canvas.width / 2, 0)
+        this.material.map.needsUpdate = true
+
+      }
+
+    }
+
+  })
 
   return TextMesh
 
