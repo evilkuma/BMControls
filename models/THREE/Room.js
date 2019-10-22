@@ -57,31 +57,30 @@ define(function(require) {
 
     this.parent = parent
 
-    this._l = 2
+    this._l = 0
 
     this.mesh = new THREE.Mesh(new THREE.BufferGeometry, new THREE.MeshPhongMaterial( { color: 0x074c24 } ))
-    var l2 = this._l/2
     var vert = new Float32Array( [
-      -l2, 0, 0,
-       l2, 0, 0,
-       l2, 300, 0,
+      -.5, 0, 0,
+       .5, 0, 0,
+       .5, 300, 0,
     
-       l2, 300, 0,
-      -l2, 300, 0,
-      -l2, 0, 0
+       .5, 300, 0,
+      -.5, 300, 0,
+      -.5, 0, 0
     ] );
     this.mesh.geometry.addAttribute('position', new THREE.BufferAttribute(vert, 3))
     this.mesh.geometry.computeVertexNormals()
 
     this.mesh1 = new THREE.Mesh(new THREE.BufferGeometry, new THREE.MeshBasicMaterial( { color: 0x074c24 } ))
     var vert = new Float32Array( [
-      -l2, 0, 0,
-       l2, 0, 0,
-       l2, 0, -20,
+      -.5, 0, 0,
+       .5, 0, 0,
+       .5, 0, -20,
     
-       l2, 0, -20,
-      -l2, 0, -20,
-      -l2, 0, 0
+       .5, 0, -20,
+      -.5, 0, -20,
+      -.5, 0, 0
     ] )
     this.mesh1.geometry.addAttribute('position', new THREE.BufferAttribute(vert, 3))
     this.mesh1.geometry.computeVertexNormals()
@@ -314,15 +313,10 @@ define(function(require) {
         wall.mesh1.position.x += move[0] / 2
         wall.mesh1.position.z -= move[1] / 2
 
-        var l = 0
-        if(cos > 0.001 || cos < -0.001) l = move[0] / cos
-        else
-        if(sin > 0.001 || sin < -0.001) l = move[1] / sin
-
-        wall.l += +l.toFixed(0)
-
         wall.point2.x = x
         wall.point2.z = -y
+
+        wall.l = +wall.point2.clone().sub(wall.point1).length().toFixed(0)
 
         points.push([x, y])
 
@@ -351,32 +345,21 @@ define(function(require) {
         wall.mesh.position.z -= move[1] / 2
         wall.mesh1.position.x += move[0] / 2
         wall.mesh1.position.z -= move[1] / 2
-
-        var l = 0
-        if(cos > 0.001 || cos < -0.001) l = move[0] / cos
-        else
-        if(sin > 0.001 || sin < -0.001) l = move[1] / sin
-
-        wall.l -= +l.toFixed(0)
         
         wall.point1.x = x
         wall.point1.z = -y
 
+        wall.l = +wall.point2.clone().sub(wall.point1).length().toFixed(0)
+
         points.push([x, y])
 
       }
-
-      sph1.position.set(points[0][0], 400, -points[0][1])
-      sph2.position.set(points[1][0], 400, -points[1][1])
-
 
     } else {
       /*
       * обработка исключения, когда стена паралельна оси Z (Y) т.е. 90, 270 ... градусов
       * бикоз в таких случаях тангенс равен бесконечности (по сути не существует)
       * */
-
-      // TODO fixed this
 
       { // prev wall
 
@@ -400,18 +383,14 @@ define(function(require) {
 
         wall.mesh.position.x += move[0] / 2
         wall.mesh.position.z -= move[1] / 2
+
         wall.mesh1.position.x += move[0] / 2
         wall.mesh1.position.z -= move[1] / 2
-
-        var l = 0
-        if(cos > 0.001 || cos < -0.001) l = move[0] / cos
-        else
-        if(sin > 0.001 || sin < -0.001) l = move[1] / cos
-
-        wall.l += +l.toFixed(0)
-
+        
         wall.point2.x = x
         wall.point2.z = -y
+
+        wall.l = +wall.point2.clone().sub(wall.point1).length().toFixed(0)
 
         points.push([x, y])
 
@@ -420,7 +399,7 @@ define(function(require) {
 
         var wall = this.getNextWall()
         var tan2 = Math.tan(wall.mesh.rotation.y)
-        var b2 = -wall.mesh.rotation.z - tan2 * wall.mesh.position.x
+        var b2 = -wall.mesh.position.z - tan2 * wall.mesh.position.x
 
         var x = position.x
         var y = tan2 * x + b2
@@ -441,15 +420,10 @@ define(function(require) {
         wall.mesh1.position.x += move[0] / 2
         wall.mesh1.position.z -= move[1] / 2
 
-        var l = 0
-        if(cos > 0.001 || cos < -0.001) l = move[0] / cos
-        else
-        if(sin > 0.001 || sin < -0.001) l = move[1] / sin
-
-        wall.l -= +l.toFixed(0)
-
         wall.point1.x = x
         wall.point1.z = -y
+
+        wall.l = +wall.point2.clone().sub(wall.point1).length().toFixed(0)
 
         points.push([x, y])
 
@@ -489,10 +463,10 @@ define(function(require) {
 
       set: function(value) {
 
-        var scale = 1/(this._l/value)
+        value = +value
 
-        this.mesh.geometry.scale(scale, 1, 1)
-        this.mesh1.geometry.scale(scale, 1, 1)
+        this.mesh.scale.x = value
+        this.mesh1.scale.x = value
 
         this._l = value
         
@@ -596,6 +570,8 @@ define(function(require) {
     if(this._floor && this._floor.parent) this._floor.parent.remove(this._floor) 
 
     var geom = new THREE.Shape
+
+    geom.moveTo(this._walls[0].point1.x, -this._walls[0].point1.z)
 
     for(var wall of this._walls) {
 

@@ -21,6 +21,8 @@ define(function(require) {
 
     this.enable = function(bool) {
 
+      this.scene.setCamera('orthographiccamera')
+      this.room.showY()
       this.scene.toggleView(3)
       this.ocontrol.enableRotate = false
 
@@ -43,8 +45,6 @@ define(function(require) {
     raycaster.setFromCamera( controls.mouse, controls.scene.camera ) 
     raycaster.ray.origin.y = 1000
     var intersects = raycaster.intersectObjects( controls.room._walls.map(wall => wall.mesh1), true )
-
-    console.log(intersects, raycaster.ray.origin)
 
     return intersects.length ? intersects[0].object : false
 

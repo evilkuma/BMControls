@@ -89,6 +89,8 @@
     SCOPE.room_sizes = SCOPE.gui.addFolder('Размеры стен')
     ROOMS.forEach(r => rooms.add({ load: loadRoom.bind(r.data) }, 'load').name(r.caption))
 
+    loadRoom.bind(ROOMS[0].data)()
+
     SCOPE.gui.add(bmcontrol.room, 'getSizes')
 
     bmcontrol.events.onview = function(obj, objs) {
@@ -102,11 +104,6 @@
     bmcontrol.events.onunselected = function(obj, objs) {
       obj.mark()
     }
-
-    window.sph1 = new THREE.Mesh(new THREE.SphereGeometry(3), new THREE.MeshBasicMaterial({color: 'red'}))
-    window.sph2 = new THREE.Mesh(new THREE.SphereGeometry(3), new THREE.MeshBasicMaterial({color: 'blue'}))
-    
-    scene.scene.add(sph1, sph2)
 
     var assets = [
       { key: 'soldier', title: 'soldier' },
