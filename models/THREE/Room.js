@@ -526,6 +526,9 @@ define(function(require) {
    * Room class
    */
 
+  var START_CHAR_CODE = 65 // A
+  var CURRENT_CHAR_CODE = START_CHAR_CODE
+
   function Room(points) {
 
     this.constructor()
@@ -548,14 +551,18 @@ define(function(require) {
 
     while(this._walls.length) this._walls[0].remove()
 
+    CURRENT_CHAR_CODE = START_CHAR_CODE
+
     for(var i = 0; i < points.length; i++) {
 
       var point1 = points[i]
       var point2 = points[i+1 === points.length ? 0 : i+1]
 
-      var wall = new Wall(this, point1, point2, 'A')
+      var wall = new Wall(this, point1, point2, String.fromCharCode(CURRENT_CHAR_CODE))
       this._walls.push(wall)
       this.add(wall.getFullMesh())
+
+      CURRENT_CHAR_CODE++
 
     }
 
