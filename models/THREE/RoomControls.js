@@ -19,12 +19,25 @@ define(function(require) {
       mouseUp: mouseUp.bind(this)
     }
 
-    this.enable = function(bool) {
+    this._enabled = false
+    this.enable = function(bool = !this._enabled) {
 
-      this.scene.setCamera('orthographiccamera')
-      this.room.showY()
-      this.scene.toggleView(3)
-      this.ocontrol.enableRotate = false
+      this._enabled = bool
+
+      this.room.showY(bool)
+      this.ocontrol.enableRotate = !bool
+
+      if(bool) {
+
+        this.scene.setCamera('orthographiccamera')
+        this.scene.toggleView(3)
+
+      } else {
+        
+        this.scene.setCamera('perspectivecamera')
+        this.scene.toggleView(1)
+
+      }
 
       var func = bool ? 'addEventListener' : 'removeEventListener'
 

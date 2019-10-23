@@ -29,23 +29,27 @@ define(function(require) {
 
   function DefaultScene(element) {
 
-    var gui = SCOPE.gui.addFolder('камера')
-    var sides = [ 'спереди', 'слева', 'сверху', 'справа', 'снизу', 'сзади' ]
-    var self = this
-    for(var i in sides) 
-      gui.add({
-        toggle: (function() {
-          self.toggleView(this.i)
-        }).bind({i: +i+1})
-      }, 'toggle').name(sides[i])
+    var gui = SCOPE.gui.addFolder('camera')
 
-    var cam_gui = gui.addFolder('тип камеры')
+    var cam_gui = gui.addFolder('type')
     cam_gui.add({ perspective() {
       self.setCamera('perspectivecamera')
     } }, 'perspective')
     cam_gui.add({ orthographic() {
       self.setCamera('orthographiccamera')
     } }, 'orthographic')
+
+    var side_cam_gui = gui.addFolder('side')
+
+    var sides = [ 'forward', 'left', 'top', 'right', 'bottom', 'back' ]
+    var self = this
+    for(var i in sides) 
+      side_cam_gui.add({
+        toggle: (function() {
+          self.toggleView(this.i)
+        }).bind({i: +i+1})
+      }, 'toggle').name(sides[i])
+
 
     this.scene = new THREE.Scene
     this.scene.background = new THREE.Color(0x222222)

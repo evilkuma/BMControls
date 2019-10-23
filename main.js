@@ -78,20 +78,18 @@
 
     rmcontrol = new THREE.RoomControls({scene, room: bmcontrol.room, ocontrol})
     
-    SCOPE.gui.add({editWalls() { rmcontrol.enable(true) }}, 'editWalls')
-
     var loadRoom = function() {
       bmcontrol.room.setWallsBySizes(this)
       scene.scene.add(bmcontrol.room)
     }
 
-    var rooms = SCOPE.gui.addFolder('Помещение')
-    SCOPE.room_sizes = SCOPE.gui.addFolder('Размеры стен')
+    var rooms = SCOPE.gui.addFolder('room')
+    SCOPE.room_sizes = SCOPE.gui.addFolder('room sizes')
     ROOMS.forEach(r => rooms.add({ load: loadRoom.bind(r.data) }, 'load').name(r.caption))
 
-    loadRoom.bind(ROOMS[0].data)()
+    SCOPE.gui.add({editWalls() { rmcontrol.enable() }}, 'editWalls').name('edit walls mode enabled')
 
-    SCOPE.gui.add(bmcontrol.room, 'getSizes')
+    loadRoom.bind(ROOMS[0].data)()
 
     bmcontrol.events.onview = function(obj, objs) {
       objs.forEach(o => o.mark())
@@ -132,10 +130,12 @@
 
     }
 
+    var assets_gui = SCOPE.gui.addFolder('assets')
+
     assets.forEach(a => {
 
       a.load = loadMTL.bind(a.key)
-      var g = SCOPE.gui.add(a, 'load')
+      var g = assets_gui.add(a, 'load')
       g.name(a.title)
       
     })

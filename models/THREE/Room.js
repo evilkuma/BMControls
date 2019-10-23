@@ -60,6 +60,7 @@ define(function(require) {
     this.parent = parent
 
     this._l = 0
+    this.caption = caption
 
     this.mesh = new THREE.Mesh(new THREE.BufferGeometry, new THREE.MeshPhongMaterial( { color: 0x074c24 } ))
     var vert = new Float32Array( [
@@ -145,7 +146,7 @@ define(function(require) {
       this.gui = SCOPE.room_sizes.add({
         get l() { return self.l },
         set l(l) { self.toLen(l) }
-      }, 'l', 50, 1000, 1)
+      }, 'l', 50, 1000, 1).name(this.caption)
 
     }
  
@@ -538,8 +539,6 @@ define(function(require) {
       this.setWalls(points)
 
     }
-
-    SCOPE.gui.add(this, 'showY')
 
   }
 
