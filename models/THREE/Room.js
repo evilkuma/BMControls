@@ -53,6 +53,9 @@ define(function(require) {
   
   var SizeLine = require('./SizeLine')
 
+  var WALL_HEIGHT = 150
+  var WALL_WEIGHT = 10
+
   function Wall(parent, point1, point2, caption = 'A') {
 
     this.constructor()
@@ -66,10 +69,10 @@ define(function(require) {
     var vert = new Float32Array( [
       -.5, 0, 0,
        .5, 0, 0,
-       .5, 300, 0,
+       .5, WALL_HEIGHT, 0,
     
-       .5, 300, 0,
-      -.5, 300, 0,
+       .5, WALL_HEIGHT, 0,
+      -.5, WALL_HEIGHT, 0,
       -.5, 0, 0
     ] );
     this.mesh.geometry.addAttribute('position', new THREE.BufferAttribute(vert, 3))
@@ -79,10 +82,10 @@ define(function(require) {
     var vert = new Float32Array( [
       -.5, 0, 0,
        .5, 0, 0,
-       .5, 0, -20,
+       .5, 0, -WALL_WEIGHT,
     
-       .5, 0, -20,
-      -.5, 0, -20,
+       .5, 0, -WALL_WEIGHT,
+      -.5, 0, -WALL_WEIGHT,
       -.5, 0, 0
     ] )
     this.mesh1.geometry.addAttribute('position', new THREE.BufferAttribute(vert, 3))
@@ -108,37 +111,7 @@ define(function(require) {
     this.point1 = point1
     this.point2 = point2
 
-    var sub = point2.clone().sub(point1)
-
-    this.l = sub.length()
-    this.vec = sub.clone().normalize()
-    this.rvec = this.vec.clone().applyEuler(new THREE.Euler(0, -Math.PI/2, 0)).toFixed()
-
-    this.mesh.rotation.y = 2*Math.PI - new THREE.Vector2(this.vec.x, this.vec.z).angle()
-    this.mesh1.rotation.y = this.mesh.rotation.y
-    this.line.rotation.y = this.mesh.rotation.y
-
-    this.position = this.mesh.position.copy(point2).add(point1).divideScalar(2)
-    this.mesh1.position.copy(this.position)
-    this.mesh1.position.y = 300
-
-    this.setFromNormalAndCoplanarPoint(this.rvec, this.position)
-
-    this.line.position.copy(this.mesh1.position).add(this.normal.clone().multiplyScalar(-25))
-
-    this.max = new THREE.Vector3(
-      Math.max(point1.x, point2.x), 
-      Math.max(point1.y, point2.y),
-      Math.max(point1.z, point2.z)
-    )
-
-    this.min = new THREE.Vector3(
-      Math.min(point1.x, point2.x), 
-      Math.min(point1.y, point2.y),
-      Math.min(point1.z, point2.z)
-    )
-
-    this.rot = Math.atan((point2.z - point1.z)/(point2.x - point1.x))
+    this.update()
 
     if(SCOPE.room_sizes && !this.gui) {
 
@@ -324,12 +297,12 @@ define(function(require) {
         wall.mesh1.position.x += move[0] / 2
         wall.mesh1.position.z -= move[1] / 2
 
-        wall.line.position.copy(wall.mesh1.position).add(wall.normal.clone().multiplyScalar(-25))
+        wall.line.position.copy(wall.mesh1.position).add(wall.normal.clone().multiplyScalar(-(WALL_WEIGHT+5)))
 
         wall.point2.x = x
         wall.point2.z = -y
 
-        wall.l = +wall.point2.clone().sub(wall.point1).length().toFixed(0)
+        wall.update()
 
         points.push([x, y])
 
@@ -360,12 +333,12 @@ define(function(require) {
         wall.mesh1.position.x += move[0] / 2
         wall.mesh1.position.z -= move[1] / 2
 
-        wall.line.position.copy(wall.mesh1.position).add(wall.normal.clone().multiplyScalar(-25))
+        wall.line.position.copy(wall.mesh1.position).add(wall.normal.clone().multiplyScalar(-(WALL_WEIGHT+5)))
         
         wall.point1.x = x
         wall.point1.z = -y
-
-        wall.l = +wall.point2.clone().sub(wall.point1).length().toFixed(0)
+        
+        wall.update()
 
         points.push([x, y])
 
@@ -403,12 +376,12 @@ define(function(require) {
         wall.mesh1.position.x += move[0] / 2
         wall.mesh1.position.z -= move[1] / 2
 
-        wall.line.position.copy(wall.mesh1.position).add(wall.normal.clone().multiplyScalar(-25))
+        wall.line.position.copy(wall.mesh1.position).add(wall.normal.clone().multiplyScalar(-(WALL_WEIGHT+5)))
         
         wall.point2.x = x
         wall.point2.z = -y
-
-        wall.l = +wall.point2.clone().sub(wall.point1).length().toFixed(0)
+        
+        wall.update()
 
         points.push([x, y])
 
@@ -439,12 +412,12 @@ define(function(require) {
         wall.mesh1.position.x += move[0] / 2
         wall.mesh1.position.z -= move[1] / 2
 
-        wall.line.position.copy(wall.mesh1.position).add(wall.normal.clone().multiplyScalar(-25))
+        wall.line.position.copy(wall.mesh1.position).add(wall.normal.clone().multiplyScalar(-(WALL_WEIGHT+5)))
 
         wall.point1.x = x
         wall.point1.z = -y
-
-        wall.l = +wall.point2.clone().sub(wall.point1).length().toFixed(0)
+        
+        wall.update()
 
         points.push([x, y])
 
@@ -456,19 +429,18 @@ define(function(require) {
     this.point1.z = -points[0][1]
     this.point2.x = points[1][0]
     this.point2.z = -points[1][1]
+    
+    this.update()
 
-    var len = Math.sqrt(Math.pow(points[0][0] - points[1][0], 2) + Math.pow(points[0][1] - points[1][1], 2))
     var x = points[1][0] + (points[0][0] - points[1][0]) / 2
     var y = points[1][1] + (points[0][1] - points[1][1]) / 2
-
-    this.l = +len.toFixed(0)
 
     this.position.x = x
     this.position.z = -y
     this.mesh1.position.x = x
     this.mesh1.position.z = -y
 
-    this.line.position.copy(this.mesh1.position).add(this.normal.clone().multiplyScalar(-25))
+    this.line.position.copy(this.mesh1.position).add(this.normal.clone().multiplyScalar(-(WALL_WEIGHT+5)))
 
     this.parent.updateFloor()
 
@@ -481,6 +453,56 @@ define(function(require) {
     res.add(this.mesh, this.mesh1, this.line)
 
     return res
+
+  }
+
+  Wall.prototype.update = function() {
+
+    var sub = this.point2.clone().sub(this.point1)
+    this.l = +sub.length().toFixed(0)
+    this.vec = sub.clone().normalize()
+    this.rvec = this.vec.clone().applyEuler(new THREE.Euler(0, -Math.PI/2, 0)).toFixed()
+
+    this.mesh.rotation.y = 2*Math.PI - new THREE.Vector2(this.vec.x, this.vec.z).angle()
+    this.mesh1.rotation.y = this.mesh.rotation.y
+    this.line.rotation.y = this.mesh.rotation.y
+
+    this.position = this.mesh.position.copy(this.point2).add(this.point1).divideScalar(2)
+    this.mesh1.position.copy(this.position)
+    this.mesh1.position.y = 300
+
+    this.setFromNormalAndCoplanarPoint(this.rvec, this.position)
+
+    this.line.position.copy(this.mesh1.position).add(this.normal.clone().multiplyScalar(-(WALL_WEIGHT+5)))
+
+    this.max = new THREE.Vector3(
+      Math.max(this.point1.x, this.point2.x), 
+      Math.max(this.point1.y, this.point2.y),
+      Math.max(this.point1.z, this.point2.z)
+    )
+
+    this.min = new THREE.Vector3(
+      Math.min(this.point1.x, this.point2.x), 
+      Math.min(this.point1.y, this.point2.y),
+      Math.min(this.point1.z, this.point2.z)
+    )
+
+    this.rot = Math.atan((this.point2.z - this.point1.z)/(this.point2.x - this.point1.x))
+
+
+  }
+
+  Wall.prototype.ray = function(ray) {
+
+    var pos = false
+
+    if((pos = ray.intersectObject(this.mesh)).length) {
+      console.log(pos[0])
+      return pos[0].point
+
+    }
+
+    return false
 
   }
 

@@ -284,10 +284,24 @@ define(function(require) {
 
     // настраиваем кастер и пуляем луч в плэйн пола
     raycaster.setFromCamera( self.mouse, self.scene.camera )
+
+    for(var wall of self.room._walls) {
+
+      var pos = false
+
+      if(pos = wall.ray(raycaster)) 
+        return moveByWall(self, wall, pos)
+
+    }
+
+    // move by floor
     var intersect = raycaster.ray.intersectPlane( self.room._plane, new THREE.Vector3 )
 
     // если мимо ничего не делаем (правда это анрил, но на всяк)
     if(!intersect) return
+
+    var info = self.getObjInfo(self.obj)
+    self.obj.position.y = info.size.y/2
 
     var walls = getInterestWalls(self, intersect)
 
@@ -325,6 +339,18 @@ define(function(require) {
       }
 
     }
+
+  }
+
+  function moveByWall(self, wall, position) {
+
+    self.obj.rotation.y = wall.mesh.rotation.y
+
+    var info = self.getObjInfo(self.obj)
+
+    var mv = wall.normal.clone().multiplyScalar(info.size.z/2)
+
+    self.obj.position.copy(position).add(mv)
 
   }
 
@@ -482,6 +508,7 @@ define(function(require) {
       var self = this
       Object.defineProperty(obj.rotation, 'y', {
         set: (function(value) {
+
           // get from THREE https://github.com/mrdoob/three.js/blob/master/src/math/Euler.js
           this.obj.rotation._y = value
           this.obj.rotation.onChangeCallback()
@@ -494,6 +521,7 @@ define(function(require) {
             )
             this.obj.userData.rectCacheRotY = this.obj.rotation.y
           }
+          
         }).bind({obj, rect}),
         get() {
           return this._y
@@ -566,6 +594,42 @@ define(function(require) {
 
       this.ocontrol.enabled = true
       
+    }
+
+  };
+
+  BMControl.prototype.getSizeObj = function(obj) {
+
+    var idx = this.objects.indexOf(obj)
+
+    if(idx === -1) return false
+
+    return this.sizes[idx]
+
+  };
+
+  BMControl.prototype.getRectObj = function(obj) {
+
+    var idx = this.objects.indexOf(obj)
+
+    if(idx === -1) return false
+
+    return this.rects[idx]
+
+  };
+
+  BMControl.prototype.getObjInfo = function(obj) {
+
+    var idx = this.objects.indexOf(obj)
+
+    if(idx === -1) return false
+
+    return {
+
+      rect: this.rects[idx],
+      size: this.sizes[idx],
+      obj
+
     }
 
   };
