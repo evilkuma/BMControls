@@ -9,7 +9,6 @@ define(function(require) {
   var raycaster = new THREE.Raycaster
   var ray = new THREE.Ray
 
-
   /**
    * Ищет 3д обьект для взаимодействия
    * 
@@ -285,12 +284,20 @@ define(function(require) {
     // настраиваем кастер и пуляем луч в плэйн пола
     raycaster.setFromCamera( self.mouse, self.scene.camera )
 
+    for(var wall of self.room._walls)
+      if(wall.removeObj(self.obj)) break
+
     for(var wall of self.room._walls) {
 
       var pos = false
 
-      if(pos = wall.ray(raycaster)) 
+      if(pos = wall.ray(raycaster)) {
+
+        wall.addObj(self.obj)
+
         return moveByWall(self, wall, pos)
+
+      }
 
     }
 
@@ -347,7 +354,64 @@ define(function(require) {
     self.obj.rotation.y = wall.mesh.rotation.y
 
     var info = self.getObjInfo(self.obj)
+    var all = self.getWallInfo(wall, [self.obj])
 
+    var rect = new Rectangle().setFromSizeAndAngle(info.size.x, info.size.y, 0)
+    rect.position.x = position.x
+    rect.position.z = position.y
+
+    // find points
+    var max = _Math.calcRealSize(new THREE.Vector3(info.size.x/2, info.size.y/2, 0), wall.rot, 'x', 'z')
+    var min = max.clone().multiplyScalar(-1)
+    max.add(position)
+    min.add(position)
+
+    /**
+     * fixed by wall sizes
+     */
+
+    // fx by xz
+    var vec = new THREE.Vector3(max.x - min.x, 0, max.z - min.z).normalize()
+    if(new THREE.Vector3(min.x - wall.position.x, 0, min.z - wall.position.z).length() > wall.l/2) {
+
+      position.x = wall.position.x
+      position.z = wall.position.z
+      position.add(vec.multiplyScalar(info.size.x/2 - wall.l/2))
+
+    } else if(new THREE.Vector3(max.x - wall.position.x, 0, max.z - wall.position.z).length() > wall.l/2) {
+
+      position.x = wall.position.x
+      position.z = wall.position.z
+      position.add(vec.multiplyScalar(wall.l/2 - info.size.x/2))
+
+    }
+    // fx by y
+    if(min.y < 0) position.y = info.size.y/2
+    else if(max.y > wall.HEIGHT) position.y = wall.HEIGHT - info.size.y/2
+
+    /**
+     * find crosses and fixed
+     */
+
+    var crosses = []
+    var rect1 = new Rectangle
+
+    for(var info1 of all) {
+
+      rect1.setFromSizeAndAngle(info1.size.x, info1.size.y, 0)
+      rect1.position.x = info1.obj.position.x
+      rect1.position.z = info1.obj.position.y
+
+      var cross = rect1.cross(rect)
+      if(cross) crosses.push(cross)
+
+    }
+
+    // TODO fixed by crosses
+
+    /**
+     * mv
+     */
     var mv = wall.normal.clone().multiplyScalar(info.size.z/2)
 
     self.obj.position.copy(position).add(mv)
@@ -631,6 +695,22 @@ define(function(require) {
       obj
 
     }
+
+  };
+
+  BMControl.prototype.getWallInfo = function(wall, exclude) {
+
+    var res = []
+
+    for(var obj of wall.objects) {
+
+      if(exclude && exclude.includes(obj)) continue
+
+      res.push(this.getObjInfo(obj))
+
+    }
+
+    return res
 
   };
 

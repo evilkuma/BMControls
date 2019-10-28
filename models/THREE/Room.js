@@ -96,6 +96,9 @@ define(function(require) {
     this.line.rotation.z = Math.PI / 2
     this.line.visible = false    
 
+    // objects from this wall (from bmcontrols)
+    this.objects = []
+
     if(point1 && point2) {
 
       this.setFromPoints(point1, point2)
@@ -105,6 +108,8 @@ define(function(require) {
   }
 
   Wall.prototype = Object.create(THREE.Plane.prototype)
+
+  Wall.prototype.HEIGHT = WALL_HEIGHT
 
   Wall.prototype.setFromPoints = function(point1, point2) {
 
@@ -456,6 +461,21 @@ define(function(require) {
 
   }
 
+  Wall.prototype.getLimits = function() {
+
+    var res = {
+
+      max: this.max.clone(),
+      min: this.min.clone()
+
+    }
+
+    res.max.y = WALL_HEIGHT
+
+    return res
+
+  }
+
   Wall.prototype.update = function() {
 
     var sub = this.point2.clone().sub(this.point1)
@@ -497,12 +517,30 @@ define(function(require) {
     var pos = false
 
     if((pos = ray.intersectObject(this.mesh)).length) {
-      console.log(pos[0])
+      
       return pos[0].point
 
     }
 
     return false
+
+  }
+
+  Wall.prototype.addObj = function(obj) {
+
+    this.objects.push(obj)
+
+  }
+
+  Wall.prototype.removeObj = function(obj) {
+    
+    var i = this.objects.indexOf(obj)
+
+    if(i === -1) return false
+
+    this.objects.splice(i, 1)
+
+    return true
 
   }
 
