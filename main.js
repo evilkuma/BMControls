@@ -68,8 +68,9 @@
     SCOPE.scene = scene.scene
 
     ocontrol = new THREE.OrbitControls(scene.camera, scene.renderer.domElement)
-
+    ocontrol.target.y = 40
     scene.ocontrol = ocontrol
+    
 
     bmcontrol = new THREE.BMControl({
       scene,
@@ -139,6 +140,10 @@
       g.name(a.title)
       
     })
+
+    SCOPE.arrow = new THREE.ArrowHelper
+    SCOPE.arrow.setLength(300)
+    scene.scene.add(SCOPE.arrow)
 
   }
 

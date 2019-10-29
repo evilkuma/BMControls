@@ -8,6 +8,7 @@ define(function(require) {
   var _Math = require('./../Math')
   var raycaster = new THREE.Raycaster
   var ray = new THREE.Ray
+  var box = new THREE.Box3
 
   /**
    * Ищет 3д обьект для взаимодействия
@@ -19,16 +20,38 @@ define(function(require) {
   function findObject(self) {
 
     raycaster.setFromCamera( self.mouse, self.scene.camera ) 
-    var intersects = raycaster.intersectObjects( self.objects, true )
-
-    if(intersects.length) {
-      while(intersects[0].object.parent !== self.objects[0].parent)
-        intersects[0].object = intersects[0].object.parent
-
-      return intersects[0]
+  
+    var intersect = new THREE.Vector3
+    var dist = false
+    var res = false
+  
+    for(var obj of self.objects) {
+  
+      if(raycaster.ray.intersectBox(box.setFromObject(obj), intersect)) {
+  
+        var ndist = intersect.sub(raycaster.ray.origin).length()
+  
+        if(!dist || ndist < dist) {
+  
+          res = obj
+          dist = ndist
+  
+        }
+  
+      }
+  
     }
-
-    return false
+  
+    // var intersects = raycaster.intersectObjects( self.objects, true )
+  
+    // if(intersects.length) {
+    //   while(intersects[0].object.parent !== self.objects[0].parent)
+    //     intersects[0].object = intersects[0].object.parent
+  
+    //   return intersects[0]
+    // }
+  
+    return res ? { object: res } : false
 
   }
 
@@ -357,7 +380,7 @@ define(function(require) {
     var all = self.getWallInfo(wall, [self.obj])
 
     var rect = new Rectangle().setFromSizeAndAngle(info.size.x, info.size.y, 0)
-    rect.position.x = position.x
+    rect.position.x = new THREE.Vector2(position.x, position.z).rotateAround({x:0, y:0}, -info.obj.rotation.y).x
     rect.position.z = position.y
 
     // find points
@@ -370,7 +393,7 @@ define(function(require) {
      * fixed by wall sizes
      */
 
-    // fx by xz
+    // fx by len (xz)
     var vec = new THREE.Vector3(max.x - min.x, 0, max.z - min.z).normalize()
     if(new THREE.Vector3(min.x - wall.position.x, 0, min.z - wall.position.z).length() > wall.l/2) {
 
@@ -393,21 +416,69 @@ define(function(require) {
      * find crosses and fixed
      */
 
-    var crosses = []
-    var rect1 = new Rectangle
+    var rect1 = new Rectangle, cross = false, info1
 
-    for(var info1 of all) {
-
+    for(info1 of all) {
+      // fix this on slanting
       rect1.setFromSizeAndAngle(info1.size.x, info1.size.y, 0)
-      rect1.position.x = info1.obj.position.x
+      rect1.position.x = new THREE.Vector2(info1.obj.position.x, info1.obj.position.z).rotateAround({x:0, y:0}, -wall.mesh.rotation.y).x
       rect1.position.z = info1.obj.position.y
 
-      var cross = rect1.cross(rect)
-      if(cross) crosses.push(cross)
+      if(cross = rect.cross(rect1)) break
 
     }
 
-    // TODO fixed by crosses
+    if(cross) {
+      console.log('cross')
+
+      if(cross.length) {
+
+        var p = false
+
+        if(!cross[0].line1.equals(cross[1].line1)) {
+
+          if(cross[0].line1.start.equals(cross[1].line1.start) || cross[0].line1.start.equals(cross[1].line1.end)) p = cross[0].line1.start
+          if(cross[0].line1.end.equals(cross[1].line1.start)   || cross[0].line1.end.equals(cross[1].line1.end)) p = cross[0].line1.end
+          
+        }
+
+        if(p) {
+
+          var v = cross[+( cross[0].point.distanceTo(p) > cross[1].point.distanceTo(p) )]
+                      .point.clone().sub(p).normalize().toFixed()
+
+          if(Math.abs(v.x) < Math.abs(v.z)) {
+            // mv by y
+            position.y = info1.obj.position.y + (info1.size.y + info.size.y) / 2 * (v.z < 0 ? -1 : 1)
+
+          } else {
+            // mv by len (xz)
+            // var vec = new THREE.Vector3(max.x - min.x, 0, max.z - min.z).normalize()//wall.vec.clone()
+            // if(v.x > 0) vec.multiplyScalar(-1)
+
+            // SCOPE.arrow.setDirection(vec)
+            // SCOPE.arrow.position.copy(self.obj.position)
+
+            // position.x = info1.obj.position.x
+            // position.z = info1.obj.position.z
+
+            // position.add(vec.multiplyScalar((info1.size.x + info.size.x) / 2))
+
+          }
+
+        } else {
+
+          // console.log('by2')
+
+        }
+
+      } else {
+
+        // if no cross info
+
+      }
+
+    }
 
     /**
      * mv
