@@ -269,9 +269,9 @@ define(function(require) {
     for(var i = 0; i < 4; i++) {
 
       var i1 = i === 3 ? 0 : i+1
-      var i2 = i1 === 3 ? 0 : i1+1
+      // var i2 = i1 === 3 ? 0 : i1+1
 
-      res.push([points[i], points[i1], points[i2]])
+      res.push([points[i], points[i1], new THREE.Vector3])
 
     }
 

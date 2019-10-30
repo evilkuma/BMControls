@@ -380,7 +380,7 @@ define(function(require) {
     var all = self.getWallInfo(wall, [self.obj])
 
     var rect = new Rectangle().setFromSizeAndAngle(info.size.x, info.size.y, 0)
-    rect.position.x = new THREE.Vector2(position.x, position.z).rotateAround({x:0, y:0}, -info.obj.rotation.y).x
+    rect.position.x = new THREE.Vector2(position.x, position.z).rotateAround({x:0, y:0}, info.obj.rotation.y).x
     rect.position.z = position.y
 
     // find points
@@ -421,7 +421,7 @@ define(function(require) {
     for(info1 of all) {
       // fix this on slanting
       rect1.setFromSizeAndAngle(info1.size.x, info1.size.y, 0)
-      rect1.position.x = new THREE.Vector2(info1.obj.position.x, info1.obj.position.z).rotateAround({x:0, y:0}, -wall.mesh.rotation.y).x
+      rect1.position.x = new THREE.Vector2(info1.obj.position.x, info1.obj.position.z).rotateAround({x:0, y:0}, wall.mesh.rotation.y).x
       rect1.position.z = info1.obj.position.y
 
       if(cross = rect.cross(rect1)) break
@@ -429,52 +429,77 @@ define(function(require) {
     }
 
     if(cross) {
-      console.log('cross')
 
       if(cross.length) {
 
-        var p = false
+        var v
 
-        if(!cross[0].line1.equals(cross[1].line1)) {
+        if(cross[0].line1.equals(cross[1].line1)) {
 
-          if(cross[0].line1.start.equals(cross[1].line1.start) || cross[0].line1.start.equals(cross[1].line1.end)) p = cross[0].line1.start
-          if(cross[0].line1.end.equals(cross[1].line1.start)   || cross[0].line1.end.equals(cross[1].line1.end)) p = cross[0].line1.end
-          
-        }
+          var point = rect.isInsidePoint(cross[0].line2.start) ? cross[0].line2.start : cross[0].line2.end 
 
-        if(p) {
+          v = point.sub( 
+            cross[0].point 
+          ).normalize().toFixed()
 
-          var v = cross[+( cross[0].point.distanceTo(p) > cross[1].point.distanceTo(p) )]
-                      .point.clone().sub(p).normalize().toFixed()
+        } else if(cross[0].line2.equals(cross[1].line2)) {
 
-          if(Math.abs(v.x) < Math.abs(v.z)) {
-            // mv by y
-            position.y = info1.obj.position.y + (info1.size.y + info.size.y) / 2 * (v.z < 0 ? -1 : 1)
-
-          } else {
-            // mv by len (xz)
-            // var vec = new THREE.Vector3(max.x - min.x, 0, max.z - min.z).normalize()//wall.vec.clone()
-            // if(v.x > 0) vec.multiplyScalar(-1)
-
-            // SCOPE.arrow.setDirection(vec)
-            // SCOPE.arrow.position.copy(self.obj.position)
-
-            // position.x = info1.obj.position.x
-            // position.z = info1.obj.position.z
-
-            // position.add(vec.multiplyScalar((info1.size.x + info.size.x) / 2))
-
-          }
+          v = cross[0].point.sub( 
+            rect1.isInsidePoint(cross[0].line1.start) ? cross[0].line1.start : cross[0].line1.end 
+          ).normalize().toFixed()
 
         } else {
 
-          // console.log('by2')
+          var p = (cross[0].line1.start.equals(cross[1].line1.start) || cross[0].line1.start.equals(cross[1].line1.end)) ?
+                    cross[0].line1.start : cross[0].line1.end
+
+          v = cross[+( cross[0].point.distanceTo(p) > cross[1].point.distanceTo(p) )]
+                      .point.clone().sub(p).normalize().toFixed()
+
+        }
+
+        if(Math.abs(v.x) < Math.abs(v.z)) {
+          // mv by y
+          position.y = info1.obj.position.y + (info1.size.y + info.size.y) / 2 * (v.z < 0 ? -1 : 1)
+
+        } else {
+          // mv by len (xz)
+          var vec = wall.vec.clone()
+          if(v.x < 0) vec.multiplyScalar(-1)
+
+          position.x = info1.obj.position.x
+          position.z = info1.obj.position.z
+
+          position
+            .sub(wall.normal.clone().multiplyScalar(info1.size.z / 2))
+            .add(vec.multiplyScalar((info1.size.x + info.size.x) / 2))
 
         }
 
       } else {
 
         // if no cross info
+        var triangles = rect1.getTriangles()
+        var lpos = rect.position.clone().sub(rect1.position)
+        var vec = new THREE.Vector3
+
+        for(var triangle of triangles) {
+
+          if(_Math.pointInTriangle2(lpos, ...triangle, 'x', 'z')) {
+
+            triangle = triangle.filter(v => !v.equals({x:0, y:0, z:0}))
+            vec.clone(triangle[0]).sub(triangle[1]).divideScalar(2).add(triangle[1])
+            console.log(triangle)
+
+            // wtf ... need fix thats
+
+            break
+
+          }
+
+        }
+
+        console.log(vec.normalize().toFixed())
 
       }
 
@@ -802,10 +827,10 @@ define(function(require) {
 
     } else {
 
-      var obj = findObject(this)
+      // var obj = findObject(this)
       
-      if(this.events.onview)
-        this.events.onview(obj, this.objects)
+      // if(this.events.onview)
+      //   this.events.onview(obj, this.objects)
 
     }
 

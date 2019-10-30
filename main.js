@@ -90,7 +90,7 @@
 
     SCOPE.gui.add({editWalls() { rmcontrol.enable() }}, 'editWalls').name('edit walls mode enabled')
 
-    loadRoom.bind(ROOMS[0].data)()
+    loadRoom.bind(ROOMS[7].data)()
 
     bmcontrol.events.onview = function(obj, objs) {
       objs.forEach(o => o.mark())
@@ -140,10 +140,6 @@
       g.name(a.title)
       
     })
-
-    SCOPE.arrow = new THREE.ArrowHelper
-    SCOPE.arrow.setLength(300)
-    scene.scene.add(SCOPE.arrow)
 
   }
 
