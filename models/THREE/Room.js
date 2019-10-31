@@ -65,7 +65,7 @@ define(function(require) {
     this._l = 0
     this.caption = caption
 
-    this.mesh = new THREE.Mesh(new THREE.BufferGeometry, new THREE.MeshStandardMaterial( { color: 0xffffff } ))
+    this.mesh = new THREE.Mesh(new THREE.BufferGeometry, new THREE.MeshStandardMaterial( { color: 0xffffff, roughness: 1, metalness: .4 } ))
     var vert = new Float32Array( [
       -.5, 0, 0,
        .5, 0, 0,
@@ -682,7 +682,7 @@ define(function(require) {
 
     this._floor = new THREE.Mesh(
       new THREE.ShapeGeometry(geom),
-      new THREE.MeshPhongMaterial( { color: 0xffffff } )
+      new THREE.MeshStandardMaterial( { color: 0xC04000, roughness: 1, metalness: .4 } )
     )
 
     this._floor.rotation.x = -Math.PI/2

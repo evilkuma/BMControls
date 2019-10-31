@@ -92,38 +92,65 @@
 
     loadRoom.bind(ROOMS[7].data)()
 
-    bmcontrol.events.onview = function(obj, objs) {
-      objs.forEach(o => o.mark())
-      if(obj) obj.object.mark('red')
-    }
+    // bmcontrol.events.onview = function(obj, objs) {
+    //   objs.forEach(o => o.obj.mark())
+    //   if(obj) obj.obj.mark('red')
+    // }
     bmcontrol.events.onselected = function(obj, objs) {
-      objs.forEach(o => o.mark())
-      obj.object.mark('green')
+      objs.forEach(o => o.obj.mark())
+      obj.obj.mark('green')
     }
     bmcontrol.events.onunselected = function(obj, objs) {
-      obj.mark()
+      obj.obj.mark()
     }
 
     var assets = [
-      { key: 'soldier', title: 'soldier' },
-      { key: 'bed', title: 'bed' },
-      { key: 'closet', title: 'closet' },
-      { key: 'table', title: 'table' },
+      { 
+        key: 'soldier', 
+        title: 'soldier',
+        data: {
+          type: 'floor'
+        }
+      },
+      { 
+        key: 'bed', 
+        title: 'bed',
+        data: {
+          type: 'floor'
+        }
+      },
+      { 
+        key: 'closet', 
+        title: 'closet',
+        data: {
+          type: 'wall'
+        }
+      },
+      { 
+        key: 'table', 
+        title: 'table',
+        data: {
+          type: 'floor'
+        }
+      },
     ]
 
     function loadMTL() {
       // TODO: cached requests
-      new THREE.MTLLoader().setPath('assets/'+this+'/').load('OBJ.mtl', materials => {
+      new THREE.MTLLoader().setPath('assets/'+this.key+'/').load('OBJ.mtl', materials => {
   
         materials.preload();
   
-        new THREE.OBJLoader().setMaterials(materials).setPath('assets/'+this+'/').load('OBJ.obj', obj => {
+        new THREE.OBJLoader().setMaterials(materials).setPath('assets/'+this.key+'/').load('OBJ.obj', obj => {
   
           obj = fixedOrigin(obj)
+          isMarked(obj)
   
           scene.scene.add(obj)
+
+          var data = Object.assign({obj}, this.data)
     
-          bmcontrol.add([obj, isMarked(obj)])
+          bmcontrol.add(data)
   
         })
   
@@ -135,7 +162,7 @@
 
     assets.forEach(a => {
 
-      a.load = loadMTL.bind(a.key)
+      a.load = loadMTL.bind({key: a.key, data: a.data})
       var g = assets_gui.add(a, 'load')
       g.name(a.title)
       

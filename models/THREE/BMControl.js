@@ -25,15 +25,17 @@ define(function(require) {
     var dist = false
     var res = false
   
-    for(var obj of self.objects) {
-  
+    for(var info of self.objects) {
+      
+      var obj = info.obj
+
       if(raycaster.ray.intersectBox(box.setFromObject(obj), intersect)) {
   
         var ndist = intersect.sub(raycaster.ray.origin).length()
   
         if(!dist || ndist < dist) {
   
-          res = obj
+          res = info
           dist = ndist
   
         }
@@ -42,24 +44,14 @@ define(function(require) {
   
     }
   
-    // var intersects = raycaster.intersectObjects( self.objects, true )
-  
-    // if(intersects.length) {
-    //   while(intersects[0].object.parent !== self.objects[0].parent)
-    //     intersects[0].object = intersects[0].object.parent
-  
-    //   return intersects[0]
-    // }
-  
-    return res ? { object: res } : false
+    return res
 
   }
 
   function getInterestWalls(self, intersect, exclude) {
 
     var res = []
-    var obj = self.obj
-    var rect = self.rects[self.objects.indexOf(obj)]
+    var rect = self.rects[self.objects.indexOf(self.obj)]
 
     for(var p of self.room._walls) {
 
@@ -122,12 +114,12 @@ define(function(require) {
   function getInterestObjs(self, intersect, exclude) {
 
     var res = []
-    var obj = self.obj
-    var rect = self.rects[self.objects.indexOf(obj)]
+    var obj = self.obj.obj
+    var rect = self.rects[self.objects.indexOf(self.obj)]
 
     for(var i in self.objects) {
       
-      var obj1 = self.objects[i]
+      var obj1 = self.objects[i].obj
       var rect1 = self.rects[i]
 
       if(obj === obj1 || (exclude && exclude.includes(obj1))) continue
@@ -137,7 +129,7 @@ define(function(require) {
 
       res.push({
         cross,
-        obj1
+        obj1: self.objects[i]
       })
 
     }
@@ -175,8 +167,7 @@ define(function(require) {
      * calc vector mv
      */
 
-    var obj = self.obj
-    var rect = self.rects[self.objects.indexOf(obj)]
+    var rect = self.rects[self.objects.indexOf(self.obj)]
     var v = new THREE.Vector3
 
     objs.map((o, i) => {
@@ -331,7 +322,7 @@ define(function(require) {
     if(!intersect) return
 
     var info = self.getObjInfo(self.obj)
-    self.obj.position.y = info.size.y/2
+    self.obj.obj.position.y = info.size.y/2
 
     var walls = getInterestWalls(self, intersect)
 
@@ -348,8 +339,8 @@ define(function(require) {
 
     if(!objs.length) {
 
-      self.obj.position.x = intersect.x
-      self.obj.position.z = intersect.z
+      self.obj.obj.position.x = intersect.x
+      self.obj.obj.position.z = intersect.z
       
       return
 
@@ -361,8 +352,8 @@ define(function(require) {
 
       if(!walls.length) {
 
-        self.obj.position.x = intersect.x
-        self.obj.position.z = intersect.z
+        self.obj.obj.position.x = intersect.x
+        self.obj.obj.position.z = intersect.z
 
         return
 
@@ -374,13 +365,13 @@ define(function(require) {
 
   function moveByWall(self, wall, position) {
 
-    self.obj.rotation.y = wall.mesh.rotation.y
+    self.obj.obj.rotation.y = wall.mesh.rotation.y
 
     var info = self.getObjInfo(self.obj)
     var all = self.getWallInfo(wall, [self.obj])
 
     var rect = new Rectangle().setFromSizeAndAngle(info.size.x, info.size.y, 0)
-    rect.position.x = new THREE.Vector2(position.x, position.z).rotateAround({x:0, y:0}, info.obj.rotation.y).x
+    rect.position.x = new THREE.Vector2(position.x, position.z).rotateAround({x:0, y:0}, info.obj.obj.rotation.y).x
     rect.position.z = position.y
 
     // find points
@@ -392,6 +383,8 @@ define(function(require) {
     /**
      * fixed by wall sizes
      */
+
+    // TODO add multi
 
     // fx by len (xz)
     var vec = new THREE.Vector3(max.x - min.x, 0, max.z - min.z).normalize()
@@ -421,8 +414,8 @@ define(function(require) {
     for(info1 of all) {
       // fix this on slanting
       rect1.setFromSizeAndAngle(info1.size.x, info1.size.y, 0)
-      rect1.position.x = new THREE.Vector2(info1.obj.position.x, info1.obj.position.z).rotateAround({x:0, y:0}, wall.mesh.rotation.y).x
-      rect1.position.z = info1.obj.position.y
+      rect1.position.x = new THREE.Vector2(info1.obj.obj.position.x, info1.obj.obj.position.z).rotateAround({x:0, y:0}, wall.mesh.rotation.y).x
+      rect1.position.z = info1.obj.obj.position.y
 
       if(cross = rect.cross(rect1)) break
 
@@ -481,15 +474,15 @@ define(function(require) {
 
       if(Math.abs(v.x) < Math.abs(v.z)) {
         // mv by y
-        position.y = info1.obj.position.y + (info1.size.y + info.size.y) / 2 * (v.z < 0 ? -1 : 1)
+        position.y = info1.obj.obj.position.y + (info1.size.y + info.size.y) / 2 * (v.z < 0 ? -1 : 1)
 
       } else {
         // mv by len (xz)
         var vec = wall.vec.clone()
         if(v.x < 0) vec.multiplyScalar(-1)
 
-        position.x = info1.obj.position.x
-        position.z = info1.obj.position.z
+        position.x = info1.obj.obj.position.x
+        position.z = info1.obj.obj.position.z
 
         position
           .sub(wall.normal.clone().multiplyScalar(info1.size.z / 2))
@@ -504,7 +497,7 @@ define(function(require) {
      */
     var mv = wall.normal.clone().multiplyScalar(info.size.z/2)
 
-    self.obj.position.copy(position).add(mv)
+    self.obj.obj.position.copy(position).add(mv)
 
   }
 
@@ -650,17 +643,15 @@ define(function(require) {
 
       var obj = info, size = new THREE.Vector3, rect
 
-      if(Array.isArray(info)) {
+      if(obj.isObject3D) {
 
-        obj = info[0]
-        size = info[1]
-
+        obj = { obj, type: 'floor' }
+        
       }
 
-      rect = new Rectangle().bindObject3d(obj, size)
+      rect = new Rectangle().bindObject3d(obj.obj, size)
 
-      var self = this
-      Object.defineProperty(obj.rotation, 'y', {
+      Object.defineProperty(obj.obj.rotation, 'y', {
         set: (function(value) {
 
           // get from THREE https://github.com/mrdoob/three.js/blob/master/src/math/Euler.js
@@ -676,7 +667,7 @@ define(function(require) {
             this.obj.userData.rectCacheRotY = this.obj.rotation.y
           }
           
-        }).bind({obj, rect}),
+        }).bind({obj: obj.obj, rect}),
         get() {
           return this._y
         }
@@ -686,10 +677,9 @@ define(function(require) {
       this.sizes.push(size)
       this.rects.push(rect)
 
-      obj.rotation.y = 0
-      obj.position.y = this.room._floor.position.y + size.y/2
+      obj.obj.rotation.y = 0
 
-      findPosition(this, obj, rect)
+      // findPosition(this, obj, rect)
 
     }
 
@@ -697,20 +687,21 @@ define(function(require) {
 
   BMControl.prototype.remove = function() {
 
-    if(arguments.length > 1) {
+    for ( var i = 0; i < arguments.length; i ++ ) {
 
-      for ( var i = 0; i < arguments.length; i ++ ) {
+      var obj = arguments[i], idx
+      
+      if(obj.isObject3D) {
 
-        var obj = arguments[i]
-        var idx = this.objects.indexOf(obj)
+        idx = this.objects.findIndex(o => o.obj === obj)
 
-        if(idx !== -1) {
+      } else idx = this.objects.indexOf(obj)
 
-          this.objects.splice(idx, 1)
-          this.sizes.splice(idx, 1)
-          this.rects.splice(idx, 1)
+      if(idx !== -1) {
 
-        }
+        this.objects.splice(idx, 1)
+        this.sizes.splice(idx, 1)
+        this.rects.splice(idx, 1)
 
       }
 
@@ -726,7 +717,7 @@ define(function(require) {
       
     }
 
-    this.obj = obj.object
+    this.obj = obj
 
     if(this.events.onselected)
       this.events.onselected(obj, this.objects)
@@ -821,10 +812,12 @@ define(function(require) {
 
     } else {
 
-      // var obj = findObject(this)
-      
-      // if(this.events.onview)
-      //   this.events.onview(obj, this.objects)
+      if(this.events.onview) {
+
+        var obj = findObject(this)
+        this.events.onview(obj, this.objects)
+
+      }
 
     }
 
@@ -841,7 +834,7 @@ define(function(require) {
 
     if(obj) { 
 
-      if(obj.object !== this.obj && this.obj) {
+      if(obj !== this.obj && this.obj) {
 
         this.unselectedObject([e.clientX, e.clientY])
 
