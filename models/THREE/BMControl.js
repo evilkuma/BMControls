@@ -430,9 +430,9 @@ define(function(require) {
 
     if(cross) {
 
-      if(cross.length) {
+      var v
 
-        var v
+      if(cross.length) {
 
         if(cross[0].line1.equals(cross[1].line1)) {
 
@@ -458,40 +458,18 @@ define(function(require) {
 
         }
 
-        if(Math.abs(v.x) < Math.abs(v.z)) {
-          // mv by y
-          position.y = info1.obj.position.y + (info1.size.y + info.size.y) / 2 * (v.z < 0 ? -1 : 1)
-
-        } else {
-          // mv by len (xz)
-          var vec = wall.vec.clone()
-          if(v.x < 0) vec.multiplyScalar(-1)
-
-          position.x = info1.obj.position.x
-          position.z = info1.obj.position.z
-
-          position
-            .sub(wall.normal.clone().multiplyScalar(info1.size.z / 2))
-            .add(vec.multiplyScalar((info1.size.x + info.size.x) / 2))
-
-        }
-
       } else {
 
-        // if no cross info
         var triangles = rect1.getTriangles()
         var lpos = rect.position.clone().sub(rect1.position)
-        var vec = new THREE.Vector3
+        v = new THREE.Vector3
 
         for(var triangle of triangles) {
 
           if(_Math.pointInTriangle2(lpos, ...triangle, 'x', 'z')) {
 
             triangle = triangle.filter(v => !v.equals({x:0, y:0, z:0}))
-            vec.clone(triangle[0]).sub(triangle[1]).divideScalar(2).add(triangle[1])
-            console.log(triangle)
-
-            // wtf ... need fix thats
+            v.copy(triangle[0]).sub(triangle[1]).divideScalar(2).add(triangle[1]).normalize().toFixed()
 
             break
 
@@ -499,7 +477,23 @@ define(function(require) {
 
         }
 
-        console.log(vec.normalize().toFixed())
+      }
+
+      if(Math.abs(v.x) < Math.abs(v.z)) {
+        // mv by y
+        position.y = info1.obj.position.y + (info1.size.y + info.size.y) / 2 * (v.z < 0 ? -1 : 1)
+
+      } else {
+        // mv by len (xz)
+        var vec = wall.vec.clone()
+        if(v.x < 0) vec.multiplyScalar(-1)
+
+        position.x = info1.obj.position.x
+        position.z = info1.obj.position.z
+
+        position
+          .sub(wall.normal.clone().multiplyScalar(info1.size.z / 2))
+          .add(vec.multiplyScalar((info1.size.x + info.size.x) / 2))
 
       }
 
