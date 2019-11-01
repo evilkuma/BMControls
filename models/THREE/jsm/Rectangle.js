@@ -5,6 +5,7 @@
  */
 
 import * as _Math from './Math'
+
 import { Ray } from 'three/src/math/Ray'
 import { Box3 } from 'three/src/math/Box3'
 import { Line3 } from 'three/src/math/Line3'
@@ -270,9 +271,9 @@ Rectangle.prototype.getTriangles = function() {
   for(var i = 0; i < 4; i++) {
 
     var i1 = i === 3 ? 0 : i+1
-    var i2 = i1 === 3 ? 0 : i1+1
+    // var i2 = i1 === 3 ? 0 : i1+1
 
-    res.push([points[i], points[i1], points[i2]])
+    res.push([points[i], points[i1], new Vector3])
 
   }
 

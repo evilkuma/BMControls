@@ -143,12 +143,34 @@ function isBetweenPoints(p, p1, p2, v, VX = 'x', VY = 'y') {
 
 }
 
+/**
+ * пересчет размеров с учетом поворота
+ * 
+ * @param SIZE { Vector3 }
+ * @param ROTATION { Number }
+ * 
+ * @returns SIZE { Vector3 }
+ * 
+ */
+function calcRealSize(SIZE, ROTATION, VX = 'x', VY = 'y') {
+
+  var x = SIZE[VX]*Math.cos(ROTATION)+SIZE[VY]*Math.sin(ROTATION)
+  var y = SIZE[VX]*Math.sin(ROTATION)+SIZE[VY]*Math.cos(ROTATION)
+
+  SIZE[VX] = x
+  SIZE[VY] = y
+
+  return SIZE
+
+}
+
 export {
 
   isCrossLines2,
   linesCrossPoint2,
   lineCross2,
   pointInTriangle2,
-  isBetweenPoints
+  isBetweenPoints,
+  calcRealSize
 
 }
