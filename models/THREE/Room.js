@@ -65,6 +65,10 @@ define(function(require) {
     this._l = 0
     this.caption = caption
 
+    this.limits_y = []
+
+    this.fullMesh = new THREE.Object3D
+
     this.mesh = new THREE.Mesh(new THREE.BufferGeometry, new THREE.MeshStandardMaterial( { color: 0xffffff, roughness: 1, metalness: .4 } ))
     var vert = new Float32Array( [
       -.5, 0, 0,
@@ -453,7 +457,7 @@ define(function(require) {
 
   Wall.prototype.getFullMesh = function() {
 
-    var res = new THREE.Object3D
+    var res = this.fullMesh
 
     res.add(this.mesh, this.mesh1, this.line)
 
@@ -509,6 +513,14 @@ define(function(require) {
 
     this.rot = Math.atan((this.point2.z - this.point1.z)/(this.point2.x - this.point1.x))
 
+    this.limits_y.forEach(limit => {
+
+      limit.mesh.rotation.y = this.mesh.rotation.y
+      limit.mesh.position.x = this.position.x
+      limit.mesh.position.z = this.position.z
+      limit.mesh.scale.x = this.l
+
+    })
 
   }
 
@@ -544,6 +556,40 @@ define(function(require) {
 
   }
 
+  Wall.prototype.addLimitY = function() {
+
+    for(var i = 0; i < arguments.length; i++) {
+
+      var h = arguments[i]
+
+      var mesh = new THREE.Line(new THREE.BufferGeometry, new THREE.LineBasicMaterial({ color: 0x319ff9, linewidth: 1 }))
+      mesh.geometry.addAttribute('position', new THREE.BufferAttribute( new Float32Array([ -.5, 0, 0, .5, 0, 0 ]), 3 ))
+      mesh.geometry.computeVertexNormals()
+  
+      mesh.rotation.y = this.mesh.rotation.y
+      mesh.scale.x = this.l
+      mesh.position.copy(this.position)
+
+      mesh.visible = false
+  
+      this.fullMesh.add(mesh)
+      
+      var limit = { 
+        mesh, h,
+        setH(h) {
+          this.h = h
+          mesh.position.y = h
+        }
+      }
+  
+      limit.setH(h)
+  
+      this.limits_y.push(limit)
+
+    }
+
+  }
+
   Object.defineProperties(Wall.prototype, {
 
     l: {
@@ -561,6 +607,7 @@ define(function(require) {
         this.mesh.scale.x = value
         this.mesh1.scale.x = value
         this.line.l = value
+        this.limits_y.forEach(limit => limit.mesh.scale.x = value)
 
         this._l = value
         
@@ -619,6 +666,7 @@ define(function(require) {
       var point2 = points[i+1 === points.length ? 0 : i+1]
 
       var wall = new Wall(this, point1, point2, String.fromCharCode(CURRENT_CHAR_CODE))
+      wall.addLimitY(50, 100, 75)
       this._walls.push(wall)
       this.add(wall.getFullMesh())
 

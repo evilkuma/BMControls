@@ -1,14 +1,20 @@
 
 define(function(require) {
 
+  var LIMIT_GAP = 5
+
   var SCOPE = require('./../global')
 
   var Room = require('./Room')
   var Rectangle = require('./Rectangle')
   var _Math = require('./../Math')
+  var SizeLine = require('./SizeLine')
+
   var raycaster = new THREE.Raycaster
   var ray = new THREE.Ray
   var box = new THREE.Box3
+
+  var size_lines = [ new SizeLine, new SizeLine ]
 
   /**
    * Ищет 3д обьект для взаимодействия
@@ -298,64 +304,89 @@ define(function(require) {
     // настраиваем кастер и пуляем луч в плэйн пола
     raycaster.setFromCamera( self.mouse, self.scene.camera )
 
-    for(var wall of self.room._walls)
-      if(wall.removeObj(self.obj)) break
+    if(self.obj.type === 'wall' || self.obj.type === 'full') {
 
-    for(var wall of self.room._walls) {
+      // move by wall
+      var isRemove, wall1
 
-      var pos = false
+      for(wall1 of self.room._walls)
+        if(isRemove = wall1.removeObj(self.obj)) break
+  
+      for(var wall of self.room._walls) {
+  
+        var pos = false
+  
+        if(pos = wall.ray(raycaster)) {
+  
+          wall.addObj(self.obj)
 
-      if(pos = wall.ray(raycaster)) {
+          if(isRemove && wall !== wall1) wall1.limits_y.forEach(limit => limit.mesh.visible = false)
+  
+          return moveByWall(self, wall, pos)
+  
+        }
+  
+      }
 
-        wall.addObj(self.obj)
+      return false
 
-        return moveByWall(self, wall, pos)
+    }
+
+    if(self.obj.type === 'floor' || self.obj.type === 'full') {
+
+      // rotate by wall
+      for(var wall of self.room._walls)
+        if(wall.ray(raycaster)) {
+
+          self.obj.obj.rotation.y = wall.mesh.rotation.y
+          break
+
+        }
+
+      // move by floor
+
+      var intersect = raycaster.ray.intersectPlane( self.room._plane, new THREE.Vector3 )
+
+      // если мимо ничего не делаем (правда это анрил, но на всяк)
+      if(!intersect) return false
+
+      var info = self.getObjInfo(self.obj)
+      self.obj.obj.position.y = info.size.y/2
+
+      var walls = getInterestWalls(self, intersect)
+
+      if(walls.length === 1) {
+
+        var tmp = getInterestWalls(self, walls[0].point, [walls[0].p])
+        if(tmp.length) walls.push(tmp[0])
 
       }
 
-    }
+      var v = setFixedWalls(walls, intersect)
 
-    // move by floor
-    var intersect = raycaster.ray.intersectPlane( self.room._plane, new THREE.Vector3 )
+      var objs = getInterestObjs(self, intersect)
 
-    // если мимо ничего не делаем (правда это анрил, но на всяк)
-    if(!intersect) return
-
-    var info = self.getObjInfo(self.obj)
-    self.obj.obj.position.y = info.size.y/2
-
-    var walls = getInterestWalls(self, intersect)
-
-    if(walls.length === 1) {
-
-      var tmp = getInterestWalls(self, walls[0].point, [walls[0].p])
-      if(tmp.length) walls.push(tmp[0])
-
-    }
-
-    var v = setFixedWalls(walls, intersect)
-
-    var objs = getInterestObjs(self, intersect)
-
-    if(!objs.length) {
-
-      self.obj.obj.position.x = intersect.x
-      self.obj.obj.position.z = intersect.z
-      
-      return
-
-    }
-
-    if(setFixedObjs(self, objs, intersect, v)) {
-
-      walls = getInterestWalls(self, intersect)
-
-      if(!walls.length) {
+      if(!objs.length) {
 
         self.obj.obj.position.x = intersect.x
         self.obj.obj.position.z = intersect.z
+        
+        return true
 
-        return
+      }
+
+      if( setFixedObjs(self, objs, intersect, v) ) {
+
+        walls = getInterestWalls(self, intersect)
+
+        if(!walls.length) {
+
+          self.obj.obj.position.x = intersect.x
+          self.obj.obj.position.z = intersect.z
+
+          return true
+
+        }
 
       }
 
@@ -366,6 +397,8 @@ define(function(require) {
   function moveByWall(self, wall, position) {
 
     self.obj.obj.rotation.y = wall.mesh.rotation.y
+
+    wall.limits_y.forEach(limit => limit.mesh.visible = true)
 
     var info = self.getObjInfo(self.obj)
     var all = self.getWallInfo(wall, [self.obj])
@@ -408,6 +441,7 @@ define(function(require) {
     /**
      * find crosses and fixed
      */
+    var isUseLimitsByY = false
 
     var rect1 = new Rectangle, cross = false, info1
 
@@ -487,6 +521,28 @@ define(function(require) {
         position
           .sub(wall.normal.clone().multiplyScalar(info1.size.z / 2))
           .add(vec.multiplyScalar((info1.size.x + info.size.x) / 2))
+
+        isUseLimitsByY = true
+
+      }
+
+    }
+
+    // fixed by limits_y
+    if(!cross || isUseLimitsByY) {
+
+      var h1 = position.y - info.size.y/2
+      var h2 = position.y + info.size.y/2
+
+      var limit = false
+
+      if(limit = wall.limits_y.find( l => (h1 < l.h && h1 + LIMIT_GAP >= l.h) || (h1 > l.h && h1 - LIMIT_GAP <= l.h) )) {
+
+        position.y = limit.h + info.size.y/2
+
+      } else if(limit = wall.limits_y.find( l => (h2 < l.h && h2 + LIMIT_GAP >= l.h) || (h2 > l.h && h2 - LIMIT_GAP <= l.h) )) {
+
+        position.y = limit.h - info.size.y/2
 
       }
 
@@ -678,6 +734,7 @@ define(function(require) {
       this.rects.push(rect)
 
       obj.obj.rotation.y = 0
+      obj.obj.position.y = size.y/2
 
       // findPosition(this, obj, rect)
 
@@ -717,6 +774,13 @@ define(function(require) {
       
     }
 
+    var wall = this.getWallByObj(obj)
+    if(wall) {
+
+      wall.limits_y.forEach(limit => limit.mesh.visible = true)
+
+    }
+
     this.obj = obj
 
     if(this.events.onselected)
@@ -732,6 +796,8 @@ define(function(require) {
 
     if(this.events.onunselected)
       this.events.onunselected(this.obj, this.objects)
+
+    this.room._walls.forEach(wall => wall.limits_y.forEach(limit => limit.mesh.visible = false))
 
     this.obj = null
 
@@ -795,6 +861,11 @@ define(function(require) {
 
   };
 
+  BMControl.prototype.getWallByObj = function(obj) {
+
+    return this.room._walls.find(wall => wall.objects.includes(obj))
+
+  };
 
   /**
    * Event on dom
