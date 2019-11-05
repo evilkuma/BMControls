@@ -6,8 +6,8 @@
 define(function(require) {
 
   var _Math = require('./../Math')
-  // var helper = require('./LinesHelper')
-  // var SCOPE = require('./../global')
+  var helper = require('./LinesHelper')
+  var SCOPE = require('./../global')
 
   var ray = new THREE.Ray
   var box = new THREE.Box3
@@ -85,9 +85,9 @@ define(function(require) {
 
     this.position = new THREE.Vector3
 
-    // this.helper = new helper
-    // this.helper.setLines(this.lines)
-    // SCOPE.scene.add(this.helper)
+    this.helper = new helper
+    this.helper.setLines(this.lines)
+    SCOPE.scene.add(this.helper)
 
     if(points) {
 
@@ -416,6 +416,31 @@ define(function(require) {
 
   Rectangle.prototype.bindObject3d = function(obj, size) {
 
+    var rotation = obj.rotation.y
+    obj.rotation.y = 0
+
+    Object.defineProperty(obj.rotation, 'y', {
+      set: (function(value) {
+
+        // get from THREE https://github.com/mrdoob/three.js/blob/master/src/math/Euler.js
+        this.obj.rotation._y = value
+        this.obj.rotation.onChangeCallback()
+        // add custom
+        if(this.obj.userData.rectCacheRotY !== value) {
+          this.rect.setFromSizeAndAngle(
+            size.x,
+            size.z,
+            value
+          )
+          this.obj.userData.rectCacheRotY = this.obj.rotation.y
+        }
+        
+      }).bind({obj, rect: this}),
+      get() {
+        return this._y
+      }
+    })
+
     this.position = obj.position
 
     if(!size || size.equals({x:0,y:0,z:0})) {
@@ -431,6 +456,8 @@ define(function(require) {
         enumerable: true,
         value: this.position
       })
+
+    obj.rotation.y = rotation
 
     return this
 

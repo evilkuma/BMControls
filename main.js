@@ -109,28 +109,32 @@
         key: 'soldier', 
         title: 'soldier',
         data: {
-          type: 'floor'
+          type: 'floor',
+          position: true
         }
       },
       { 
         key: 'bed', 
         title: 'bed',
         data: {
-          type: 'floor'
+          type: 'floor',
+          position: true
         }
       },
       { 
         key: 'closet', 
         title: 'closet',
         data: {
-          type: 'wall'
+          type: 'wall',
+          position: true
         }
       },
       { 
         key: 'table', 
         title: 'table',
         data: {
-          type: 'floor'
+          type: 'floor',
+          position: true
         }
       },
     ]
@@ -145,6 +149,7 @@
   
           obj = fixedOrigin(obj)
           isMarked(obj)
+          obj.scale.multiplyScalar(2)
   
           scene.scene.add(obj)
 
@@ -167,6 +172,12 @@
       g.name(a.title)
       
     })
+
+    window.arrow = new THREE.ArrowHelper
+
+    arrow.setLength(100)
+
+    scene.scene.add(arrow)
 
   }
 

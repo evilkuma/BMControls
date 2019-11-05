@@ -125,6 +125,8 @@ define(function(require) {
 
     for(var i in self.objects) {
       
+      if(self.objects[i].type === 'wall') continue
+
       var obj1 = self.objects[i].obj
       var rect1 = self.rects[i]
 
@@ -206,18 +208,6 @@ define(function(require) {
 
     }).filter(v => !!v).forEach(e => v.add(e).normalize())
 
-    if(v.equals({x:0, y:0, z:0})) v = vec ? vec : new THREE.Vector3(0, 0, 1)
-    else if(vec) {
-      var vecr = vec.clone().applyEuler(new THREE.Euler(0, Math.PI/2, 0))
-      var a = Math.PI/2
-      if(vecr.angleTo(v) > Math.PI/2) a *= -1
-
-      v = vec.clone().applyEuler(new THREE.Euler(0, a, 0)).toFixed().normalize()
-
-    }
-
-    if(vec && v.angleTo(vec) > Math.PI/2) v = vec
-
     /**
      * calc mv val by vector
      */
@@ -277,6 +267,9 @@ define(function(require) {
 
         return false
       }
+      
+      arrow.setDirection(v)
+      arrow.position.copy(intersect)
 
       p.add(v.clone().multiplyScalar(.001))
 
@@ -701,40 +694,21 @@ define(function(require) {
 
       if(obj.isObject3D) {
 
-        obj = { obj, type: 'floor' }
+        obj = { obj, type: 'floor', position: true }
         
       }
 
       rect = new Rectangle().bindObject3d(obj.obj, size)
 
-      Object.defineProperty(obj.obj.rotation, 'y', {
-        set: (function(value) {
-
-          // get from THREE https://github.com/mrdoob/three.js/blob/master/src/math/Euler.js
-          this.obj.rotation._y = value
-          this.obj.rotation.onChangeCallback()
-          // add custom
-          if(this.obj.userData.rectCacheRotY !== value) {
-            this.rect.setFromSizeAndAngle(
-              size.x,
-              size.z,
-              value
-            )
-            this.obj.userData.rectCacheRotY = this.obj.rotation.y
-          }
-          
-        }).bind({obj: obj.obj, rect}),
-        get() {
-          return this._y
-        }
-      })
-
       this.objects.push(obj)
       this.sizes.push(size)
       this.rects.push(rect)
 
-      obj.obj.rotation.y = 0
-      obj.obj.position.y = size.y/2
+      if(obj.position) {
+
+        obj.obj.position.y = size.y/2
+
+      }
 
       // findPosition(this, obj, rect)
 
@@ -867,13 +841,35 @@ define(function(require) {
 
   };
 
+BMControl.prototype.clear = function() {
+
+  this.obj = false
+
+  for(var i = 0; i < this.objects.length; i++) {
+
+    var obj = this.objects[i].obj
+    if(obj.parent) obj.parent.remove(obj)
+
+  }
+
+  this.objects = []
+  this.sizes = []
+  this.rects = []
+
+  this.room.clear()
+
+};
+
   /**
    * Event on dom
    */
   function mouseMove(e) {
 
-    this.mouse.x = (e.clientX / window.innerWidth ) * 2 - 1
-    this.mouse.y = - ( e.clientY / window.innerHeight ) * 2 + 1;
+    var dom = this.scene.renderer.domElement
+    var bounds = dom.getBoundingClientRect()
+  
+    this.mouse.x = ((e.clientX - bounds.left) / dom.clientWidth) * 2 - 1,
+    this.mouse.y = -((e.clientY - bounds.top) / dom.clientHeight) * 2 + 1
 
     if(this.obj) {
 
