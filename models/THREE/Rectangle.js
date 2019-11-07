@@ -77,6 +77,23 @@ define(function(require) {
 
   }
 
+  function crossRectVec(rect, vec) {
+
+    var line1 = new THREE.Line3(new THREE.Vector3, vec.clone().multiplyScalar(10000))
+
+    for(var line of rect.lines) {
+
+      var cross = _Math.lineCross2(line, line1, 'x', 'z')
+
+      if(cross) return cross
+
+    }
+
+    return false
+
+  }
+
+
   function Rectangle(points) {
 
     this.lines = []
@@ -348,6 +365,9 @@ define(function(require) {
 
     if(obj.constructor === THREE.Plane)
       return crossRectLine(this, obj)
+
+    if(obj.constructor === THREE.Vector3)
+      return crossRectVec(this, obj)
 
     return false
 

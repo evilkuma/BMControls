@@ -1,10 +1,6 @@
 
 define(function(require) {
 
-  var LIMIT_GAP = 5
-
-  var SCOPE = require('./../global')
-
   var Room = require('./Room')
   var Rectangle = require('./Rectangle')
   var _Math = require('./../Math')
@@ -14,7 +10,18 @@ define(function(require) {
   var ray = new THREE.Ray
   var box = new THREE.Box3
 
-  var size_lines = [ new SizeLine, new SizeLine ]
+
+  function BMObject(data) {
+
+    this.mesh = data.obj
+    this.size = box.setFromObject(data.obj).getSize(new THREE.Vector3)
+    this.type = data.type || 'floor'
+
+    this._body = new p2.Box()
+
+  }
+
+
 
   /**
    * Ищет 3д обьект для взаимодействия
@@ -51,239 +58,6 @@ define(function(require) {
     }
   
     return res
-
-  }
-
-  function getInterestWalls(self, intersect, exclude) {
-
-    var res = []
-    var rect = self.rects[self.objects.indexOf(self.obj)]
-
-    for(var p of self.room._walls) {
-
-      if(exclude && exclude.includes(p)) continue
-
-      ray.set(intersect, p.rvec.clone().multiplyScalar(-1))
-      var pos = ray.intersectPlane(p, new THREE.Vector3)
-
-      if(pos) {
-        if( (pos.x > p.max.x || pos.x < p.min.x) || (pos.z > p.max.z || pos.z < p.min.z) ) 
-          continue
-      } else {
-        var angle = p.point1.angleTo(p.point2) - p.point1.angleTo(intersect) - p.point2.angleTo(intersect)
-        if(+angle.toFixed(10) < 0) continue
-      }
-
-      var points = rect.getMovedLines(intersect).map(pt => pt.start)
-
-      var isOver = false
-      var over_poses = points.map(pt => {
-    
-        ray.set(pt, p.rvec)
-        var res = ray.intersectPlane(p, new THREE.Vector3)
-        if(res) isOver = true
-    
-        return res
-    
-      })
-
-      if(!isOver) continue
-
-      var idx, distance = 0
-      for(let i = 0; i < over_poses.length; i++) {
-
-        if(!over_poses[i]) continue
-
-        var ndist = over_poses[i].distanceTo(points[i])
-        if(ndist >= distance) {
-          distance = ndist
-          idx = i
-        }
-
-      }
-
-      var mv = p.rvec.clone().multiplyScalar(.001)
-      var nx = intersect.x - (points[idx].x - over_poses[idx].x) + mv.x
-      var nz = intersect.z - (points[idx].z - over_poses[idx].z) + mv.z
-
-      res.push({ 
-        point: new THREE.Vector3(nx, 0, nz),
-        p
-      })
-
-    }
-
-    return res
-
-  }
-
-  function getInterestObjs(self, intersect, exclude) {
-
-    var res = []
-    var obj = self.obj.obj
-    var rect = self.rects[self.objects.indexOf(self.obj)]
-
-    for(var i in self.objects) {
-      
-      if(self.objects[i].type === 'wall') continue
-
-      var obj1 = self.objects[i].obj
-      var rect1 = self.rects[i]
-
-      if(obj === obj1 || (exclude && exclude.includes(obj1))) continue
-
-      var cross = rect.cross(rect1, intersect)
-      if(!cross) continue
-
-      res.push({
-        cross,
-        obj1: self.objects[i]
-      })
-
-    }
-
-    return res
-
-  }
-
-  function setFixedWalls(walls, intersect) {
-
-    if(!walls.length) return false
-    if(walls.length === 1) {
-      intersect.copy(walls[0].point)
-      return walls[0].p.rvec
-    }
-
-    var vec1 = walls[0].p.rvec.clone().applyEuler(new THREE.Euler(0, Math.PI/2, 0))
-    var vec2 = walls[1].p.rvec.clone().applyEuler(new THREE.Euler(0, Math.PI/2, 0))
-
-    ray.set(walls[0].point, vec1)
-
-    var res = ray.intersectVec2( vec2, walls[1].point, 'xz')
-
-    intersect.copy(res)
-
-    return walls[0].p.rvec.clone().add(walls[1].p.rvec).normalize()
-
-  }
-
-  function setFixedObjs(self, objs, intersect, vec) {
-
-    if(!objs.length) return
-
-    /**
-     * calc vector mv
-     */
-
-    var rect = self.rects[self.objects.indexOf(self.obj)]
-    var v = new THREE.Vector3
-
-    objs.map((o, i) => {
-      
-      var rect1 = self.rects[self.objects.indexOf(o.obj1)]
-      o.rect1 = rect1
-      var lines = rect1.getWorldLines()
-      
-      var info = lines.map(line => {
-
-        var v = line.start.clone().sub(line.end).normalize()
-        var dir = v.clone().applyEuler(new THREE.Euler(0, Math.PI/2, 0)).toFixed(10)
-
-        ray.origin.copy(intersect)
-        ray.direction.copy(dir.clone().multiplyScalar(-1))
-
-        var p1 = v.clone().multiplyScalar(1000).add(line.start)
-        var p2 = v.clone().multiplyScalar(-1000).add(line.end)
-
-        if(!ray.intersectsLine2(new THREE.Line3(p1, p2), 'xz'))
-          return false
-
-        return { v, line, dir }
-
-      }).filter(l => !!l)
-
-      if(info.length === 1) return info[0].dir
-      if(info.length === 2) return info[0].dir.clone().add(info[1].dir).normalize()
-      return rect1.directionFromTriangles(intersect)
-
-    }).filter(v => !!v).forEach(e => v.add(e).normalize())
-
-    /**
-     * calc mv val by vector
-     */
-
-    if(objs.length === 1) {
-        
-      var line1 = rect.getLineFromDirect(v.clone().multiplyScalar(-1)) 
-      if(line1) {
-
-        line1 = line1.clone()
-        line1.start.add(intersect)
-        line1.end.add(intersect)
-
-      } else return false
-
-      var line2 = objs[0].rect1.getLineFromDirect(v)
-      if(line2) line2 = objs[0].rect1.localToWorld(line2)
-        else return false
-
-      var p
-
-      var v1 = v.clone()
-      var v2 = v.clone().multiplyScalar(-1)
-      var fs = [
-        [line1.start, v1, line2],
-        [line1.end,   v1, line2],
-        [line2.start, v2, line1],
-        [line2.end,   v2, line1]
-      ]
-
-      var res = fs.map(f => {
-
-        ray.direction.copy(f[1])
-        ray.origin.copy(f[0])
-  
-        var pos = ray.intersectLine2(f[2], 'xz')
-        
-        if(!pos) return false
-  
-        return [pos.distanceTo(f[0]), f[1] === v1 ? pos.sub(f[0]) : f[0].clone().sub(pos)]
-
-      }).filter(el => !!el)
-      
-      if(!res.length) return false
-
-      var dist = res[0]
-      for(var i = 1; i < res.length; i++)
-        if(res[i][0] > dist[0]) {
-
-          dist = res[i]
-
-        }
-
-      p = dist[1]
-
-      if(!p) {
-
-        return false
-      }
-      
-      arrow.setDirection(v)
-      arrow.position.copy(intersect)
-
-      p.add(v.clone().multiplyScalar(.001))
-
-      intersect.add(p)
-
-      return true
-
-    }
-
-    if(objs.length === 2) {
-
-      // TODO: add multy objs
-
-    }
 
   }
 
@@ -387,265 +161,12 @@ define(function(require) {
 
   }
 
-  function moveByWall(self, wall, position) {
-
-    self.obj.obj.rotation.y = wall.mesh.rotation.y
-
-    wall.limits_y.forEach(limit => limit.mesh.visible = true)
-
-    var info = self.getObjInfo(self.obj)
-    var all = self.getWallInfo(wall, [self.obj])
-
-    var rect = new Rectangle().setFromSizeAndAngle(info.size.x, info.size.y, 0)
-    rect.position.x = new THREE.Vector2(position.x, position.z).rotateAround({x:0, y:0}, info.obj.obj.rotation.y).x
-    rect.position.z = position.y
-
-    // find points
-    var max = _Math.calcRealSize(new THREE.Vector3(info.size.x/2, info.size.y/2, 0), wall.rot, 'x', 'z')
-    var min = max.clone().multiplyScalar(-1)
-    max.add(position)
-    min.add(position)
-
-    /**
-     * fixed by wall sizes
-     */
-
-    // TODO add multi
-
-    // fx by len (xz)
-    var vec = new THREE.Vector3(max.x - min.x, 0, max.z - min.z).normalize()
-    if(new THREE.Vector3(min.x - wall.position.x, 0, min.z - wall.position.z).length() > wall.l/2) {
-
-      position.x = wall.position.x
-      position.z = wall.position.z
-      position.add(vec.multiplyScalar(info.size.x/2 - wall.l/2))
-
-    } else if(new THREE.Vector3(max.x - wall.position.x, 0, max.z - wall.position.z).length() > wall.l/2) {
-
-      position.x = wall.position.x
-      position.z = wall.position.z
-      position.add(vec.multiplyScalar(wall.l/2 - info.size.x/2))
-
-    }
-    // fx by y
-    if(min.y < 0) position.y = info.size.y/2
-    else if(max.y > wall.HEIGHT) position.y = wall.HEIGHT - info.size.y/2
-
-    /**
-     * find crosses and fixed
-     */
-    var isUseLimitsByY = false
-
-    var rect1 = new Rectangle, cross = false, info1
-
-    for(info1 of all) {
-      // fix this on slanting
-      rect1.setFromSizeAndAngle(info1.size.x, info1.size.y, 0)
-      rect1.position.x = new THREE.Vector2(info1.obj.obj.position.x, info1.obj.obj.position.z).rotateAround({x:0, y:0}, wall.mesh.rotation.y).x
-      rect1.position.z = info1.obj.obj.position.y
-
-      if(cross = rect.cross(rect1)) break
-
-    }
-
-    if(cross) {
-
-      var v
-
-      if(cross.length) {
-
-        if(cross[0].line1.equals(cross[1].line1)) {
-
-          var point = rect.isInsidePoint(cross[0].line2.start) ? cross[0].line2.start : cross[0].line2.end 
-
-          v = point.sub( 
-            cross[0].point 
-          ).normalize().toFixed()
-
-        } else if(cross[0].line2.equals(cross[1].line2)) {
-
-          v = cross[0].point.sub( 
-            rect1.isInsidePoint(cross[0].line1.start) ? cross[0].line1.start : cross[0].line1.end 
-          ).normalize().toFixed()
-
-        } else {
-
-          var p = (cross[0].line1.start.equals(cross[1].line1.start) || cross[0].line1.start.equals(cross[1].line1.end)) ?
-                    cross[0].line1.start : cross[0].line1.end
-
-          v = cross[+( cross[0].point.distanceTo(p) > cross[1].point.distanceTo(p) )]
-                      .point.clone().sub(p).normalize().toFixed()
-
-        }
-
-      } else {
-
-        var triangles = rect1.getTriangles()
-        var lpos = rect.position.clone().sub(rect1.position)
-        v = new THREE.Vector3
-
-        for(var triangle of triangles) {
-
-          if(_Math.pointInTriangle2(lpos, ...triangle, 'x', 'z')) {
-
-            triangle = triangle.filter(v => !v.equals({x:0, y:0, z:0}))
-            v.copy(triangle[0]).sub(triangle[1]).divideScalar(2).add(triangle[1]).normalize().toFixed()
-
-            break
-
-          }
-
-        }
-
-      }
-
-      if(Math.abs(v.x) < Math.abs(v.z)) {
-        // mv by y
-        position.y = info1.obj.obj.position.y + (info1.size.y + info.size.y) / 2 * (v.z < 0 ? -1 : 1)
-
-      } else {
-        // mv by len (xz)
-        var vec = wall.vec.clone()
-        if(v.x < 0) vec.multiplyScalar(-1)
-
-        position.x = info1.obj.obj.position.x
-        position.z = info1.obj.obj.position.z
-
-        position
-          .sub(wall.normal.clone().multiplyScalar(info1.size.z / 2))
-          .add(vec.multiplyScalar((info1.size.x + info.size.x) / 2))
-
-        isUseLimitsByY = true
-
-      }
-
-    }
-
-    // fixed by limits_y
-    if(!cross || isUseLimitsByY) {
-
-      var h1 = position.y - info.size.y/2
-      var h2 = position.y + info.size.y/2
-
-      var limit = false
-
-      if(limit = wall.limits_y.find( l => (h1 < l.h && h1 + LIMIT_GAP >= l.h) || (h1 > l.h && h1 - LIMIT_GAP <= l.h) )) {
-
-        position.y = limit.h + info.size.y/2
-
-      } else if(limit = wall.limits_y.find( l => (h2 < l.h && h2 + LIMIT_GAP >= l.h) || (h2 > l.h && h2 - LIMIT_GAP <= l.h) )) {
-
-        position.y = limit.h - info.size.y/2
-
-      }
-
-    }
-
-    /**
-     * mv
-     */
-    var mv = wall.normal.clone().multiplyScalar(info.size.z/2)
-
-    self.obj.obj.position.copy(position).add(mv)
-
-  }
-
-  function findPosition(self, obj, rect) {
-
-    raycaster.setFromCamera( new THREE.Vector2, self.scene.camera )
-    
-    var wall, dist = false
-    var ndist = new THREE.Vector3
-
-    var cam_angle = new THREE.Vector2(raycaster.ray.direction.x, raycaster.ray.direction.z).normalize().multiplyScalar(-1).angle()
-
-    for(var i = 0; i < self.room._walls.length; i++) {
-
-      var w = self.room._walls[i]
-
-      if(Math.abs(new THREE.Vector2(w.rvec.x, w.rvec.z).normalize().angle() - cam_angle) > Math.PI/2)
-        continue
-
-      if(raycaster.ray.intersectPlane(w, ndist)) {
-
-        var len = ndist.sub(self.scene.camera.position).length()
-
-        if(!dist || len < dist) {
-          dist = len
-          wall = w
-        }
-
-      }
-
-    }
-
-    obj.rotation.y = new THREE.Vector2(0, 1).angle() - new THREE.Vector2(wall.rvec.x, wall.rvec.z).angle()
-    obj.position.set(wall.point1.x, obj.position.y, wall.point1.z)
-      .add(wall.vec.clone().multiplyScalar(rect.size.x/2))
-      .add(wall.rvec.clone().multiplyScalar(rect.size.y/2))
-
-    var pline = new THREE.Plane(wall.normal, wall.constant - rect.size.y + .1)
-    var line_points = []
-
-    for(var r of self.rects) {
-
-      if(r === rect) continue
-
-      var p
-      if(p = r.cross(pline))
-        line_points.push(p)
-
-    }
-
-    var tmp = wall.rvec.clone().multiplyScalar(.1)
-    line_points.forEach(p => { p[0].add(tmp); p[1].add(tmp) })
-
-    var opoints = [ obj.position.clone(), obj.position.clone() ]
-    var mv = wall.vec.clone().multiplyScalar(rect.size.x/2)
-    opoints[0].sub(mv)
-    opoints[1].add(mv)
-    var mv1 = wall.rvec.clone().multiplyScalar(rect.size.y/2)
-
-    for(var i = 0; i < line_points.length; i++) {
-
-      var points = line_points[i]
-
-      // TODO: проверять не вхождение точки в область, а пересечение областей
-      var bet1 = _Math.isBetweenPoints(opoints[0], ...points, wall.vec, 'x', 'z')
-      var bet2 = _Math.isBetweenPoints(opoints[1], ...points, wall.vec, 'x', 'z')
-      if(bet1 || bet2) {
-
-        var ch = opoints[1].clone().sub(opoints[0]).normalize()
-
-        if(ch.equals(wall.vec)) {
-          opoints[0] = points[1].sub(mv1)
-          opoints[1] = opoints[0].clone().add(mv.clone().multiplyScalar(1.9))
-        } else {
-          opoints[0] = points[0].sub(mv1)
-          opoints[1] = opoints[1].clone().add(mv.clone().multiplyScalar(1.9))
-        }
-        
-        line_points.splice(i, 1)
-        i = -1
-
-      }
-
-    }
-
-    obj.position.copy(opoints[0].add(mv))
-
-  }
-
-
   /**
    * exorted Class BMControl
    */
-
   function BMControl({ scene, points = [], dom = document.body, ocontrol } = {}) {
 
     this.objects = []
-    this.sizes = []
-    this.rects = []
 
     this.room = new Room(points)
     this.events = {}
@@ -690,7 +211,7 @@ define(function(require) {
 
       var info = arguments[i]
 
-      var obj = info, size = new THREE.Vector3, rect
+      var obj = info, size = new THREE.Vector3
 
       if(obj.isObject3D) {
 
@@ -698,19 +219,15 @@ define(function(require) {
         
       }
 
-      rect = new Rectangle().bindObject3d(obj.obj, size)
+      obj.size = box.setFromObject(obj.obj).getSize(new THREE.Vector3)
 
       this.objects.push(obj)
-      this.sizes.push(size)
-      this.rects.push(rect)
 
       if(obj.position) {
 
-        obj.obj.position.y = size.y/2
+        obj.obj.position.y = obj.size.y/2
 
       }
-
-      // findPosition(this, obj, rect)
 
     }
 
