@@ -16,12 +16,69 @@ define(function(require) {
     this.mesh = data.obj
     this.size = box.setFromObject(data.obj).getSize(new THREE.Vector3)
     this.type = data.type || 'floor'
+    this.parent = data.parent
 
-    this._body = new p2.Box()
+    this._shape
+    this._body = new p2.Body({ mass: 1, angle: 0, fixedRotation: true })
+    this._body.type = p2.Body.DYNAMIC
+    this.updateShape()
+
+    this.parent.p2.world.addBody(this._body)
+
+    if(data.position) {
+
+      this.mesh.position.y = this.size.y/2
+
+    }
 
   }
 
+  BMObject.prototype.updateShape = function() {
 
+    var width = this.size.x, height = this.type === 'floor' ? this.size.z : this.size.y
+
+    // add remove shape
+
+    this._shape = new p2.Box({ width, height })
+    // this._shape.material = this.parent.p2.materials[0]
+
+    this._body.addShape(this._shape)
+
+    return this
+
+  }
+
+  BMObject.prototype.setPosition = function(vec) {
+
+    var x = vec.x, y = this.type === 'floor' ? vec.z : vec.y
+
+    this._body.position[0] = x
+    this._body.position[1] = y
+
+    return this
+
+  }
+
+  BMObject.prototype.update = function() {
+
+    var y = this.type === 'floor' ? 'z' : 'y'
+
+    this.mesh.position.x = this._body.position[0]
+    this.mesh.position[y] = this._body.position[1]
+
+    return this
+
+  }
+
+  BMObject.prototype.remove = function() {
+
+    this.mesh.parent.remove(this.mesh)
+    this.parent.remove(this)
+
+    return this
+
+  }
+  // TODO setRotation
 
   /**
    * Ищет 3д обьект для взаимодействия
@@ -40,9 +97,11 @@ define(function(require) {
   
     for(var info of self.objects) {
       
-      var obj = info.obj
+      var obj = info.mesh
 
-      if(raycaster.ray.intersectBox(box.setFromObject(obj), intersect)) {
+      box.setFromCenterAndSize(obj.position, info.size)
+
+      if(raycaster.ray.intersectBox(box, intersect)) {
   
         var ndist = intersect.sub(raycaster.ray.origin).length()
   
@@ -71,91 +130,19 @@ define(function(require) {
     // настраиваем кастер и пуляем луч в плэйн пола
     raycaster.setFromCamera( self.mouse, self.scene.camera )
 
-    if(self.obj.type === 'wall' || self.obj.type === 'full') {
-
-      // move by wall
-      var isRemove, wall1
-
-      for(wall1 of self.room._walls)
-        if(isRemove = wall1.removeObj(self.obj)) break
-  
-      for(var wall of self.room._walls) {
-  
-        var pos = false
-  
-        if(pos = wall.ray(raycaster)) {
-  
-          wall.addObj(self.obj)
-
-          if(isRemove && wall !== wall1) wall1.limits_y.forEach(limit => limit.mesh.visible = false)
-  
-          return moveByWall(self, wall, pos)
-  
-        }
-  
-      }
-
-      return false
-
-    }
-
     if(self.obj.type === 'floor' || self.obj.type === 'full') {
 
-      // rotate by wall
-      for(var wall of self.room._walls)
-        if(wall.ray(raycaster)) {
+      // TODO rotate by wall
 
-          self.obj.obj.rotation.y = wall.mesh.rotation.y
-          break
-
-        }
-
-      // move by floor
-
-      var intersect = raycaster.ray.intersectPlane( self.room._plane, new THREE.Vector3 )
-
+      var intersect = raycaster.ray.intersectPlane( self.room._plane, self.p2.toPosition )
       // если мимо ничего не делаем (правда это анрил, но на всяк)
       if(!intersect) return false
 
-      var info = self.getObjInfo(self.obj)
-      self.obj.obj.position.y = info.size.y/2
-
-      var walls = getInterestWalls(self, intersect)
-
-      if(walls.length === 1) {
-
-        var tmp = getInterestWalls(self, walls[0].point, [walls[0].p])
-        if(tmp.length) walls.push(tmp[0])
-
-      }
-
-      var v = setFixedWalls(walls, intersect)
-
-      var objs = getInterestObjs(self, intersect)
-
-      if(!objs.length) {
-
-        self.obj.obj.position.x = intersect.x
-        self.obj.obj.position.z = intersect.z
-        
-        return true
-
-      }
-
-      if( setFixedObjs(self, objs, intersect, v) ) {
-
-        walls = getInterestWalls(self, intersect)
-
-        if(!walls.length) {
-
-          self.obj.obj.position.x = intersect.x
-          self.obj.obj.position.z = intersect.z
-
-          return true
-
-        }
-
-      }
+      var mv = intersect.clone().sub({x: self.obj._body.position[0], y: 0, z: self.obj._body.position[1]}) //.multiplyScalar(10)
+      var len = mv.length()
+      mv.normalize().multiplyScalar(len*10)
+      self.obj._body.velocity[0] = mv.x
+      self.obj._body.velocity[1] = mv.z
 
     }
 
@@ -168,7 +155,6 @@ define(function(require) {
 
     this.objects = []
 
-    this.room = new Room(points)
     this.events = {}
     this.obj = null
     this.move = false
@@ -182,7 +168,11 @@ define(function(require) {
       mouseUp: mouseUp.bind(this)
     }
 
+    this._enabled = false
+
     this.enable = function(bool) {
+
+      this.enabled = bool
 
       var func = bool ? 'addEventListener' : 'removeEventListener'
 
@@ -190,11 +180,15 @@ define(function(require) {
       dom[func]('mousedown', events.mouseDown)
       dom[func]('mouseup', events.mouseUp)
 
+      if(bool) {
+
+        animate()
+
+      }
+
       return this
 
     }
-
-    this.enable(true)
 
     /**
      * если кнопка мыши была поднята в течении
@@ -202,6 +196,36 @@ define(function(require) {
      * иначе работает orbit
      */
     this.moveTimeout = null
+
+    // p2
+    this.p2 = {
+
+      world: new p2.World({ gravity:[0, 0] }),
+      // tmp
+      toPosition: new THREE.Vector3
+
+    }
+
+    this.p2.world.defaultContactMaterial.friction = 0.0;
+    this.p2.world.setGlobalStiffness(1e10);
+
+    var animate = t => {
+
+      requestAnimationFrame( animate )
+
+      this.p2.world.step(1/60)
+
+      this.objects.forEach(o => {
+        o._body.velocity[0] = 0
+        o._body.velocity[1] = 0
+        o.update()
+      })
+    
+
+    }
+
+    this.room = new Room(points, this)
+    this.enable(true)
 
   }
 
@@ -211,7 +235,7 @@ define(function(require) {
 
       var info = arguments[i]
 
-      var obj = info, size = new THREE.Vector3
+      var obj = info
 
       if(obj.isObject3D) {
 
@@ -219,15 +243,7 @@ define(function(require) {
         
       }
 
-      obj.size = box.setFromObject(obj.obj).getSize(new THREE.Vector3)
-
-      this.objects.push(obj)
-
-      if(obj.position) {
-
-        obj.obj.position.y = obj.size.y/2
-
-      }
+      this.objects.push(new BMObject( Object.assign({ parent: this }, obj) ))
 
     }
 
@@ -241,15 +257,13 @@ define(function(require) {
       
       if(obj.isObject3D) {
 
-        idx = this.objects.findIndex(o => o.obj === obj)
+        idx = this.objects.findIndex(o => o.mesh === obj)
 
       } else idx = this.objects.indexOf(obj)
 
       if(idx !== -1) {
 
         this.objects.splice(idx, 1)
-        this.sizes.splice(idx, 1)
-        this.rects.splice(idx, 1)
 
       }
 
@@ -265,12 +279,13 @@ define(function(require) {
       
     }
 
-    var wall = this.getWallByObj(obj)
-    if(wall) {
+    for(var o of this.objects) {
 
-      wall.limits_y.forEach(limit => limit.mesh.visible = true)
+      o._body.type = p2.Body.KINEMATIC
 
     }
+    
+    obj._body.type = p2.Body.DYNAMIC
 
     this.obj = obj
 
@@ -288,8 +303,6 @@ define(function(require) {
     if(this.events.onunselected)
       this.events.onunselected(this.obj, this.objects)
 
-    this.room._walls.forEach(wall => wall.limits_y.forEach(limit => limit.mesh.visible = false))
-
     this.obj = null
 
     if(this.ocontrol && !this.ocontrol.enabled) {
@@ -300,82 +313,22 @@ define(function(require) {
 
   };
 
-  BMControl.prototype.getSizeObj = function(obj) {
-
-    var idx = this.objects.indexOf(obj)
-
-    if(idx === -1) return false
-
-    return this.sizes[idx]
-
-  };
-
-  BMControl.prototype.getRectObj = function(obj) {
-
-    var idx = this.objects.indexOf(obj)
-
-    if(idx === -1) return false
-
-    return this.rects[idx]
-
-  };
-
-  BMControl.prototype.getObjInfo = function(obj) {
-
-    var idx = this.objects.indexOf(obj)
-
-    if(idx === -1) return false
-
-    return {
-
-      rect: this.rects[idx],
-      size: this.sizes[idx],
-      obj
-
-    }
-
-  };
-
-  BMControl.prototype.getWallInfo = function(wall, exclude) {
-
-    var res = []
-
-    for(var obj of wall.objects) {
-
-      if(exclude && exclude.includes(obj)) continue
-
-      res.push(this.getObjInfo(obj))
-
-    }
-
-    return res
-
-  };
-
   BMControl.prototype.getWallByObj = function(obj) {
 
     return this.room._walls.find(wall => wall.objects.includes(obj))
 
   };
 
-BMControl.prototype.clear = function() {
+  BMControl.prototype.clear = function() {
 
-  this.obj = false
+    this.obj = false
 
-  for(var i = 0; i < this.objects.length; i++) {
+    while(this.objects.length)
+      this.objects[0].remove()
 
-    var obj = this.objects[i].obj
-    if(obj.parent) obj.parent.remove(obj)
+    this.room.clear()
 
-  }
-
-  this.objects = []
-  this.sizes = []
-  this.rects = []
-
-  this.room.clear()
-
-};
+  };
 
   /**
    * Event on dom

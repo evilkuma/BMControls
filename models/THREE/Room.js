@@ -103,6 +103,14 @@ define(function(require) {
     // objects from this wall (from bmcontrols)
     this.objects = []
 
+    this._shape = new p2.Box({width: 1, height: .5})
+    this._body = new p2.Body({fixedRotation: true})
+    this._body.type = p2.Body.STATIC
+    this._body.addShape(this._shape)
+    
+
+    parent.bmcontrols.p2.world.addBody(this._body)
+
     if(point1 && point2) {
 
       this.setFromPoints(point1, point2)
@@ -160,6 +168,7 @@ define(function(require) {
     if(this.mesh && this.mesh.parent) this.mesh.parent.remove(this.mesh)
     if(this.mesh1 && this.mesh1.parent) this.mesh1.parent.remove(this.mesh1)
     if(this.line && this.line.parent) this.line.parent.remove(this.line)
+    if(this._body && this._body.world) this._body.world.removeBody(this._body)
 
   }
 
@@ -522,6 +531,15 @@ define(function(require) {
 
     })
 
+    this._shape.constructor({width: this.l, height: 10})
+
+    var body_position = this.normal.clone().multiplyScalar(-5).add(this.position)
+
+    this._body.position[0] = body_position.x
+    this._body.position[1] = body_position.z
+
+    this._body.angle = +this.rot.toFixed(10)
+
   }
 
   Wall.prototype.ray = function(ray) {
@@ -636,13 +654,14 @@ define(function(require) {
   var START_CHAR_CODE = 65 // A
   var CURRENT_CHAR_CODE = START_CHAR_CODE
 
-  function Room(points) {
+  function Room(points, parent) {
 
     this.constructor()
 
     this._walls = []
     this._floor = null
     this._plane = new THREE.Plane(new THREE.Vector3(0, 1, 0))
+    this.bmcontrols = parent
 
     if(points && points.length) {
 

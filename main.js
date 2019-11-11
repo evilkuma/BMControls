@@ -97,11 +97,11 @@
     //   if(obj) obj.obj.mark('red')
     // }
     bmcontrol.events.onselected = function(obj, objs) {
-      objs.forEach(o => o.obj.mark())
-      obj.obj.mark('green')
+      objs.forEach(o => o.mesh.mark())
+      obj.mesh.mark('green')
     }
     bmcontrol.events.onunselected = function(obj, objs) {
-      obj.obj.mark()
+      obj.mesh.mark()
     }
 
     var assets = [
