@@ -173,12 +173,6 @@
       
     })
 
-    window.arrow = new THREE.ArrowHelper
-
-    arrow.setLength(100)
-
-    scene.scene.add(arrow)
-
   }
 
 })()

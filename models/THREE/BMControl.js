@@ -23,7 +23,8 @@ define(function(require) {
     this._body.type = p2.Body.DYNAMIC
     this.updateShape()
 
-    this.parent.p2.world.addBody(this._body)
+    if(this.type === 'floor') 
+      this.parent.p2.world.addBody(this._body)
 
     if(data.position) {
 
@@ -61,10 +62,24 @@ define(function(require) {
 
   BMObject.prototype.update = function() {
 
-    var y = this.type === 'floor' ? 'z' : 'y'
+    if(this.type === 'floor') {
 
-    this.mesh.position.x = this._body.position[0]
-    this.mesh.position[y] = this._body.position[1]
+      this.mesh.position.x = this._body.position[0]
+      this.mesh.position.z = this._body.position[1]
+
+    } else {
+
+      if(!this.wall) return
+
+      var pos = this.wall.position.clone()
+        .add(this.wall.vec.clone().multiplyScalar(this._body.position[0]))
+        .add(this.wall.rvec.clone().multiplyScalar(this.size.z/2))
+
+      this.mesh.position.x = pos.x
+      this.mesh.position.y = this._body.position[1]
+      this.mesh.position.z = pos.z
+
+    }
 
     return this
 
@@ -78,7 +93,15 @@ define(function(require) {
     return this
 
   }
-  // TODO setRotation
+
+  BMObject.prototype.setRotation = function(rot) {
+
+    // this._body.angle = rot
+    this.mesh.rotation.y = rot
+
+    return this
+
+  }
 
   /**
    * Ищет 3д обьект для взаимодействия
@@ -144,6 +167,50 @@ define(function(require) {
       self.obj._body.velocity[0] = mv.x
       self.obj._body.velocity[1] = mv.z
 
+      updateWorld(self.p2.world, self.obj)
+
+    }
+
+    if(self.obj.type === 'wall') {
+
+      var wall, pos = false
+
+      for(wall of self.room._walls) {
+        
+        if(pos = wall.ray(raycaster)) {
+  
+          break
+  
+        }
+
+      }
+
+      if(!pos) return
+
+      if(self.obj.wall !== wall) {
+
+        if(self.obj.wall) {
+
+          self.obj.wall.removeObj(self.obj)
+  
+        }
+
+        wall.addObj(self.obj)
+        self.obj.wall = wall
+
+      }
+
+      var mv = pos.clone().sub(self.obj.mesh.position)
+      var len = mv.length()
+      mv.normalize().multiplyScalar(len*10)
+
+      var x = new THREE.Vector2(mv.x, mv.z).rotateAround({x:0, y:0}, wall.mesh.rotation.y).x
+      
+      self.obj._body.velocity[0] = x
+      self.obj._body.velocity[1] = mv.y
+
+      updateWorld(wall.world, self.obj)
+
     }
 
   }
@@ -180,11 +247,11 @@ define(function(require) {
       dom[func]('mousedown', events.mouseDown)
       dom[func]('mouseup', events.mouseUp)
 
-      if(bool) {
+      // if(bool) {
 
-        animate()
+      //   animate()
 
-      }
+      // }
 
       return this
 
@@ -209,20 +276,21 @@ define(function(require) {
     this.p2.world.defaultContactMaterial.friction = 0.0;
     this.p2.world.setGlobalStiffness(1e10);
 
-    var animate = t => {
+    // var animate = t => {
 
-      requestAnimationFrame( animate )
+    //   requestAnimationFrame( animate )
 
-      this.p2.world.step(1/60)
+    //   this.p2.world.step(1/60)
+    //   // this.room._walls.forEach(wall => wall.world.step(1/60))
 
-      this.objects.forEach(o => {
-        o._body.velocity[0] = 0
-        o._body.velocity[1] = 0
-        o.update()
-      })
+    //   this.objects.forEach(o => {
+    //     if(o.type === 'wall') return
+    //     o._body.velocity[0] = 0
+    //     o._body.velocity[1] = 0
+    //     o.update()
+    //   })
     
-
-    }
+    // }
 
     this.room = new Room(points, this)
     this.enable(true)
@@ -410,6 +478,32 @@ define(function(require) {
       this.moveTimeout = null
 
     }
+
+  }
+
+  function updateWorld(world, obj) {
+
+    world.step(1/60)
+
+    setTimeout(e => {
+
+      world.step(1/60)
+
+      setTimeout(e => {
+
+        world.step(1/60)
+
+          if(obj) {
+            
+            obj.update()
+            obj._body.velocity[0] = 0
+            obj._body.velocity[1] = 0
+
+          }
+
+      }, 6)
+
+    }, 6)
 
   }
 

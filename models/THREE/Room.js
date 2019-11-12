@@ -104,18 +104,31 @@ define(function(require) {
     this.objects = []
 
     this._shape = new p2.Box({width: 1, height: .5})
-    this._body = new p2.Body({fixedRotation: true})
+    this._body = new p2.Body({mass: 100, fixedRotation: true})
     this._body.type = p2.Body.STATIC
     this._body.addShape(this._shape)
     
-
     parent.bmcontrols.p2.world.addBody(this._body)
+
+    this.world = new p2.World({ gravity:[0, 0] })
+
+    for(var i = 0, angle = 0; i < 4; i++, angle += Math.PI/2) {
+
+      var body = new p2.Body({angle})
+      body.addShape(new p2.Plane())
+
+      this.world.addBody(body)
+
+    }
+
+    this.world.bodies[2].position[1] = WALL_HEIGHT
 
     if(point1 && point2) {
 
       this.setFromPoints(point1, point2)
 
     }
+
 
   }
 
@@ -124,6 +137,9 @@ define(function(require) {
   Wall.prototype.HEIGHT = WALL_HEIGHT
 
   Wall.prototype.setFromPoints = function(point1, point2) {
+
+    point1.toFixed(0)
+    point2.toFixed(0)
 
     this.point1 = point1
     this.point2 = point2
@@ -540,6 +556,9 @@ define(function(require) {
 
     this._body.angle = +this.rot.toFixed(10)
 
+    this.world.bodies[3].position[0] = -this.l/2
+    this.world.bodies[1].position[0] = this.l/2
+
   }
 
   Wall.prototype.ray = function(ray) {
@@ -559,6 +578,9 @@ define(function(require) {
   Wall.prototype.addObj = function(obj) {
 
     this.objects.push(obj)
+    this.world.addBody(obj._body)
+    
+    obj.setRotation(this.mesh.rotation.y)
 
   }
 
@@ -569,6 +591,7 @@ define(function(require) {
     if(i === -1) return false
 
     this.objects.splice(i, 1)
+    this.world.removeBody(obj._body)
 
     return true
 
