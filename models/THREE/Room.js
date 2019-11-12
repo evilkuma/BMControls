@@ -547,9 +547,9 @@ define(function(require) {
 
     })
 
-    this._shape.constructor({width: this.l, height: 10})
+    this._shape.constructor({width: this.l + (this.cantFullLen ? 0 : 100), height: 100})
 
-    var body_position = this.normal.clone().multiplyScalar(-5).add(this.position)
+    var body_position = this.normal.clone().multiplyScalar(-50).add(this.position)
 
     this._body.position[0] = body_position.x
     this._body.position[1] = body_position.z
@@ -713,6 +713,22 @@ define(function(require) {
       this.add(wall.getFullMesh())
 
       CURRENT_CHAR_CODE++
+
+    }
+
+    for(var wall of this._walls) {
+
+      var w = wall.getNextWall()
+      console.log(wall.caption + "-" + w.caption, wall.vec.angleTo(w.normal))
+      if(wall.vec.angleTo(w.normal) === 0) {
+
+        wall.cantFullLen = true
+        w.cantFullLen = true
+
+        wall.update()
+        w.update()
+
+      }
 
     }
 

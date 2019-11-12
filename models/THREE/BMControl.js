@@ -96,7 +96,8 @@ define(function(require) {
 
   BMObject.prototype.setRotation = function(rot) {
 
-    // this._body.angle = rot
+    if(this.type !== 'wall') 
+      this._body.angle = -rot
     this.mesh.rotation.y = rot
 
     return this
@@ -156,6 +157,19 @@ define(function(require) {
     if(self.obj.type === 'floor' || self.obj.type === 'full') {
 
       // TODO rotate by wall
+      var pos, wall
+
+      for(wall of self.room._walls) {
+        
+        if(pos = wall.ray(raycaster)) {
+  
+          break
+  
+        }
+
+      }
+
+      if(pos) self.obj.setRotation(wall.mesh.rotation.y)
 
       var intersect = raycaster.ray.intersectPlane( self.room._plane, self.p2.toPosition )
       // если мимо ничего не делаем (правда это анрил, но на всяк)
@@ -313,6 +327,8 @@ define(function(require) {
 
       this.objects.push(new BMObject( Object.assign({ parent: this }, obj) ))
 
+      updateWorld(this.p2.world, this.objects)
+
     }
 
   }
@@ -372,6 +388,8 @@ define(function(require) {
       this.events.onunselected(this.obj, this.objects)
 
     this.obj = null
+
+    this.objects.forEach(obj => obj._body.type = p2.Body.DYNAMIC)
 
     if(this.ocontrol && !this.ocontrol.enabled) {
 
@@ -495,15 +513,30 @@ define(function(require) {
 
           if(obj) {
             
-            obj.update()
-            obj._body.velocity[0] = 0
-            obj._body.velocity[1] = 0
+            if(obj.constructor === BMObject) {
+
+              obj.update()
+              obj._body.velocity[0] = 0
+              obj._body.velocity[1] = 0
+
+            } else if(Array.isArray(obj)) {
+
+              obj.forEach(o => {
+
+                o.update()
+                o._body.velocity[0] = 0
+                o._body.velocity[1] = 0
+
+              })
+
+            }
+
 
           }
 
-      }, 6)
+      }, 60)
 
-    }, 6)
+    }, 60)
 
   }
 
