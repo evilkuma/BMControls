@@ -161,7 +161,7 @@ define(function(require) {
         console.error('undefined camera type')
     }
 
-    this.scene.add(this.camera)
+    // this.scene.add(this.camera)
 
     if(this.ocontrol)
       this.ocontrol.object = this.camera

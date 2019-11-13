@@ -2,14 +2,12 @@
 define(function(require) {
 
   var Room = require('./Room')
-  var Rectangle = require('./Rectangle')
-  var _Math = require('./../Math')
   var SizeLine = require('./SizeLine')
+  var _Math = require('./../Math')
 
   var raycaster = new THREE.Raycaster
   var ray = new THREE.Ray
   var box = new THREE.Box3
-
 
   function BMObject(data) {
 
@@ -181,7 +179,11 @@ define(function(require) {
       self.obj._body.velocity[0] = mv.x
       self.obj._body.velocity[1] = mv.z
 
-      updateWorld(self.p2.world, self.obj)
+      updateWorld(self.p2.world, self.obj, () => {
+
+        self.updateSizeLines(self.obj)
+
+      })
 
     }
 
@@ -241,7 +243,14 @@ define(function(require) {
     this.move = false
     this.mouse = new THREE.Vector2
     this.scene = scene
-    this.ocontrol = ocontrol
+    this.ocontrol = ocontrol;
+    // создается 4 размерных линии, сразу скрываются, добавляются на сцену и хранятся в массиве this.size_lines
+    (this.size_lines = [new SizeLine({w:10}), new SizeLine({w:10}), new SizeLine({w:10}), new SizeLine({w:10})]).forEach((line) => {
+
+      this.scene.scene.add(line)
+      line.visible = false
+
+    })
 
     var events = {
       mouseMove: mouseMove.bind(this),
@@ -289,22 +298,6 @@ define(function(require) {
 
     this.p2.world.defaultContactMaterial.friction = 0.0;
     this.p2.world.setGlobalStiffness(1e10);
-
-    // var animate = t => {
-
-    //   requestAnimationFrame( animate )
-
-    //   this.p2.world.step(1/60)
-    //   // this.room._walls.forEach(wall => wall.world.step(1/60))
-
-    //   this.objects.forEach(o => {
-    //     if(o.type === 'wall') return
-    //     o._body.velocity[0] = 0
-    //     o._body.velocity[1] = 0
-    //     o.update()
-    //   })
-    
-    // }
 
     this.room = new Room(points, this)
     this.enable(true)
@@ -372,6 +365,7 @@ define(function(require) {
     obj._body.type = p2.Body.DYNAMIC
 
     this.obj = obj
+    this.updateSizeLines(this.obj)
 
     if(this.events.onselected)
       this.events.onselected(obj, this.objects)
@@ -388,6 +382,7 @@ define(function(require) {
       this.events.onunselected(this.obj, this.objects)
 
     this.obj = null
+    this.updateSizeLines()
 
     this.objects.forEach(obj => obj._body.type = p2.Body.DYNAMIC)
 
@@ -413,6 +408,121 @@ define(function(require) {
       this.objects[0].remove()
 
     this.room.clear()
+
+  };
+
+  BMControl.prototype.updateSizeLines = function(obj) {
+
+    if(!obj) {
+
+      this.size_lines.forEach(line => line.visible = false)
+
+      return
+
+    }
+
+    if(obj.type === 'floor') {
+
+      ray.origin.copy(obj.mesh.position)
+      ray.origin.y = 1
+  
+      var dirs = [
+        [-1, 0, 0], [1, 0, 0],  //left right
+        [0, 0, 1], [0, 0, -1]    //top bottom
+      ]
+  
+      var size = _Math.calcRealSize(obj.size.clone(), obj.mesh.rotation.y, 'x', 'z').abs()
+      var info = new Array(4)
+  
+      for(var o of this.objects) {
+  
+        if (o === obj) continue
+  
+        var o_size = o.size.clone()
+  
+        if(o.mesh.rotation.y) _Math.calcRealSize(o_size, o.mesh.rotation.y, 'x', 'z').abs()
+  
+        box.setFromCenterAndSize(o.mesh.position, o_size)
+  
+        for(var i = 0; i < 4; i++) {
+  
+          ray.direction.set(...dirs[i])
+  
+          if( ray.intersectsBox(box) ) {
+  
+            var abs_dir = ray.direction.clone().abs()
+            var v = i < 2 ? 'x' : 'z'
+  
+            info[i] = o.mesh.position.clone().multiply(abs_dir).add( 
+              obj.mesh.position.clone().multiply( new THREE.Vector3(1,1,1).sub(abs_dir) )
+            ).add(ray.direction.multiplyScalar(-o_size[v]/2))
+  
+            // 1 оьект может пересекаться только с 1 стороной, потому нет смысла проходить весь цикл
+            break 
+  
+          }
+  
+        }
+        
+      }
+  
+      // if not find obj, find point on wall
+      var walls = this.room._walls.map(wall => wall.mesh)
+  
+      for(var i = 0; i < 4; i ++) {
+  
+        if(info[i]) continue
+  
+        raycaster.ray.origin.copy(obj.mesh.position)
+        raycaster.ray.direction.set(...dirs[i])
+  
+        var res = raycaster.intersectObjects(walls, false)
+  
+        if(res.length) {
+  
+          info[i] = res[0].point
+  
+        }
+  
+      }
+  
+      // show lines 
+      var rots = [
+        0, Math.PI,             //left right
+        Math.PI/2, Math.PI*1.5  //top bottom
+      ]
+  
+      var o_points = [
+        obj.mesh.position.clone(), obj.mesh.position.clone(),
+        obj.mesh.position.clone(), obj.mesh.position.clone()
+      ]
+      o_points[0].x -= size.x/2 //left
+      o_points[1].x += size.x/2 //right
+      o_points[2].z += size.z/2 //top
+      o_points[3].z -= size.z/2 //bottom
+  
+      for(var i = 0; i < 4; i++) {
+  
+        var line = this.size_lines[i]
+        var l = +info[i].distanceTo(o_points[i]).toFixed(2)
+  
+        if(l > .5) {
+  
+          line.visible = true
+          line.position.copy(o_points[i]).sub(info[i]).divideScalar(2).add(info[i])
+          line.l = +info[i].distanceTo(o_points[i]).toFixed(2)
+          line.rotation.set(0, rots[i], Math.PI/2)
+  
+        } else line.visible = false
+  
+      }
+
+    } else {
+
+      // TODO from walls
+
+    }
+
 
   };
 
@@ -499,7 +609,7 @@ define(function(require) {
 
   }
 
-  function updateWorld(world, obj) {
+  function updateWorld(world, obj, callback) {
 
     world.step(1/60)
 
@@ -511,28 +621,29 @@ define(function(require) {
 
         world.step(1/60)
 
-          if(obj) {
-            
-            if(obj.constructor === BMObject) {
+        if(obj) {
+          
+          if(obj.constructor === BMObject) {
 
-              obj.update()
-              obj._body.velocity[0] = 0
-              obj._body.velocity[1] = 0
+            obj.update()
+            obj._body.velocity[0] = 0
+            obj._body.velocity[1] = 0
 
-            } else if(Array.isArray(obj)) {
+          } else if(Array.isArray(obj)) {
 
-              obj.forEach(o => {
+            obj.forEach(o => {
 
-                o.update()
-                o._body.velocity[0] = 0
-                o._body.velocity[1] = 0
+              o.update()
+              o._body.velocity[0] = 0
+              o._body.velocity[1] = 0
 
-              })
-
-            }
-
+            })
 
           }
+
+        }
+
+        if(callback) callback(world, obj)
 
       }, 60)
 

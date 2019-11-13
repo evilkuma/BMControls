@@ -719,7 +719,6 @@ define(function(require) {
     for(var wall of this._walls) {
 
       var w = wall.getNextWall()
-      console.log(wall.caption + "-" + w.caption, wall.vec.angleTo(w.normal))
       if(wall.vec.angleTo(w.normal) === 0) {
 
         wall.cantFullLen = true
