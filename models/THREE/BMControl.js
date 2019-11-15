@@ -213,19 +213,29 @@ define(function(require) {
 
         wall.addObj(self.obj)
         self.obj.wall = wall
+  
+        var x = new THREE.Vector2(pos.x, pos.z).rotateAround({x:0, y:0}, wall.mesh.rotation.y).x
+
+        self.obj._body.position[0] = x
+
+      } else {
+
+        var mv = pos.clone().sub(self.obj.mesh.position)
+        var len = mv.length()
+        mv.normalize().multiplyScalar(len*10)
+  
+        var x = new THREE.Vector2(mv.x, mv.z).rotateAround({x:0, y:0}, wall.mesh.rotation.y).x
+        
+        self.obj._body.velocity[0] = x
+        self.obj._body.velocity[1] = mv.y
 
       }
 
-      var mv = pos.clone().sub(self.obj.mesh.position)
-      var len = mv.length()
-      mv.normalize().multiplyScalar(len*10)
+      updateWorld(wall.world, self.obj, () => {
 
-      var x = new THREE.Vector2(mv.x, mv.z).rotateAround({x:0, y:0}, wall.mesh.rotation.y).x
-      
-      self.obj._body.velocity[0] = x
-      self.obj._body.velocity[1] = mv.y
+        self.updateSizeLines(self.obj)
 
-      updateWorld(wall.world, self.obj)
+      })
 
     }
 
@@ -506,7 +516,7 @@ define(function(require) {
         var line = this.size_lines[i]
         var l = +info[i].distanceTo(o_points[i]).toFixed(2)
   
-        if(l > .5) {
+        if(l > 4) {
   
           line.visible = true
           line.position.copy(o_points[i]).sub(info[i]).divideScalar(2).add(info[i])
@@ -519,9 +529,51 @@ define(function(require) {
 
     } else {
 
-      // TODO from walls
+      if(!obj.wall) return
 
+      var size = obj.size
+      var info = new Array(3)
+
+      ray.origin.copy(obj.mesh.position).sub(obj.wall.normal.clone().multiplyScalar(size.z) - 4)
+      ray.origin.y = 1
+
+      var dirs = [
+        [-1,0,0], [1,0,0], [0,-1,0] // left right down
+      ]
+
+      for(var o of obj.wall.objects) {
+
+        if(o === obj) continue
+
+        var o_size = o.size
+
+        box.setFromCenterAndSize(o.mesh.position, o_size)
+
+        for(var i = 0; i < 3; i++) {
+
+          ray.direction.set(...dirs[i])
+
+          if( ray.intersectsBox(box) ) {
+
+            var abs_dir = ray.direction.clone().abs()
+            var v = i < 2 ? 'x' : 'y'
+
+            info[i] = o.mesh.position.clone().multiply(abs_dir).add(
+              obj.mesh.position.clone().multiply( new THREE.Vector3(1,1,1).sub(abs_dir) )
+            ).add(ray.direction.multiplyScalar(-o_size[v]/2))
+
+            // 1 оьект может пересекаться только с 1 стороной, потому нет смысла проходить весь цикл
+            break 
+
+          }
+
+        }
+
+      }
     }
+
+    // if not find obj, find point on wall
+    
 
 
   };
@@ -645,9 +697,9 @@ define(function(require) {
 
         if(callback) callback(world, obj)
 
-      }, 60)
+      }, 10)
 
-    }, 60)
+    }, 10)
 
   }
 
