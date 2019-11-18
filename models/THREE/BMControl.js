@@ -280,12 +280,6 @@ define(function(require) {
       dom[func]('mousedown', events.mouseDown)
       dom[func]('mouseup', events.mouseUp)
 
-      // if(bool) {
-
-      //   animate()
-
-      // }
-
       return this
 
     }
@@ -431,6 +425,8 @@ define(function(require) {
 
     }
 
+    // TODO fix distance
+
     if(obj.type === 'floor') {
 
       ray.origin.copy(obj.mesh.position)
@@ -520,7 +516,7 @@ define(function(require) {
   
           line.visible = true
           line.position.copy(o_points[i]).sub(info[i]).divideScalar(2).add(info[i])
-          line.l = +info[i].distanceTo(o_points[i]).toFixed(2)
+          line.l = l
           line.rotation.set(0, rots[i], Math.PI/2)
   
         } else line.visible = false
@@ -534,12 +530,21 @@ define(function(require) {
       var size = obj.size
       var info = new Array(3)
 
-      ray.origin.copy(obj.mesh.position).sub(obj.wall.normal.clone().multiplyScalar(size.z) - 4)
-      ray.origin.y = 1
-
       var dirs = [
         [-1,0,0], [1,0,0], [0,-1,0] // left right down
       ]
+
+      var v2 = new THREE.Vector2
+      var v3 = new THREE.Vector3
+
+      var ro_position = new THREE.Vector3(
+        v2.set(obj.mesh.position.x, obj.mesh.position.z).rotateAround({x:0, y:0}, obj.wall.mesh.rotation.y).x,
+        obj.mesh.position.y,
+        size.z/2
+      )
+
+      ray.origin.copy(ro_position)
+      ray.origin.z = 4
 
       for(var o of obj.wall.objects) {
 
@@ -547,7 +552,13 @@ define(function(require) {
 
         var o_size = o.size
 
-        box.setFromCenterAndSize(o.mesh.position, o_size)
+        v3.set(
+          v2.set(o.mesh.position.x, o.mesh.position.z).rotateAround({x:0, y:0}, obj.wall.mesh.rotation.y).x,
+          o.mesh.position.y,
+          o_size.z/2
+        )
+
+        box.setFromCenterAndSize(v3, o_size)
 
         for(var i = 0; i < 3; i++) {
 
@@ -555,12 +566,15 @@ define(function(require) {
 
           if( ray.intersectsBox(box) ) {
 
-            var abs_dir = ray.direction.clone().abs()
-            var v = i < 2 ? 'x' : 'y'
+            if(i < 2) {
 
-            info[i] = o.mesh.position.clone().multiply(abs_dir).add(
-              obj.mesh.position.clone().multiply( new THREE.Vector3(1,1,1).sub(abs_dir) )
-            ).add(ray.direction.multiplyScalar(-o_size[v]/2))
+              info[i] = v3.x - ro_position.x
+
+            } else {
+
+              info[i] = v3.y - ro_position.y
+
+            }
 
             // 1 оьект может пересекаться только с 1 стороной, потому нет смысла проходить весь цикл
             break 
@@ -570,11 +584,102 @@ define(function(require) {
         }
 
       }
+
+      if(!info[0]) {
+
+        info[0] = v2.set(obj.wall.point1.x, obj.wall.point1.z).rotateAround({x:0, y:0}, obj.wall.mesh.rotation.y).x - ro_position.x
+
+      }
+
+      if(!info[1]) {
+
+        info[1] = v2.set(obj.wall.point2.x, obj.wall.point2.z).rotateAround({x:0, y:0}, obj.wall.mesh.rotation.y).x - ro_position.x
+
+      }
+
+      if(!info[2]) {
+
+        info[2] = this.room._floor.position.y - ro_position.y
+
+      }
+
+      console.log(info[0])
+
+      return
+
+      if(!info[2]) {
+        //find point on floor
+        raycaster.ray.origin.copy(obj.mesh.position)
+        raycaster.ray.direction.set(...dirs[2])
+
+        var res = raycaster.intersectObject(this.room._floor, false)
+
+        if(res.length) {
+
+          info[2] = res[0].point
+
+        }
+
+      }
+
+      // for(var i = 0; i < 2; i++) {
+
+      //   if(!info[i]) {
+        
+      //     info[i] = obj.wall['point' + (i + 1)].clone().multiply(
+      //       new THREE.Vector3(1,1,1).sub( new THREE.Vector3(...dirs[i]).abs() )
+      //     )
+          
+      //   }
+      // }
+
+      // console.log(info)
+
+      // show lines
+      var o_points = [
+        obj.mesh.position.clone(), 
+        obj.mesh.position.clone(), 
+        obj.mesh.position.clone()
+      ]
+
+      var rot = obj.wall.rot
+
+      var x_size = new THREE.Vector3(Math.cos(rot) * size.x/2, 0, Math.sin(rot) * size.x/2)
+
+      o_points[0].sub(x_size)
+      o_points[1].add(x_size)
+      o_points[2].y -= size.y/2
+
+      for(var i = 0; i < 3; i++) {
+
+        var line = this.size_lines[i]
+
+        if(!info[i]) {
+
+          line.visible = false
+          continue
+
+        }
+
+        var l = +info[i].distanceTo(o_points[i]).toFixed(2)
+
+        if(l > 4) {
+
+          line.visible = true
+          line.position.copy(o_points[i]).sub(info[i]).divideScalar(2).add(info[i])
+          line.l = l
+
+          if(i < 2) {
+
+            line.rotation.set(Math.PI/2, 0, Math.PI/2 + obj.wall.mesh.rotation.y)
+
+          } else line.rotation.set(0, Math.PI/2 + obj.wall.mesh.rotation.y, 0)
+
+        } else line.visible = false
+
+      } 
+
     }
-
-    // if not find obj, find point on wall
-    
-
 
   };
 
