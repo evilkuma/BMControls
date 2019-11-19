@@ -537,8 +537,11 @@ define(function(require) {
       var v2 = new THREE.Vector2
       var v3 = new THREE.Vector3
 
+      var wall_start = v2.set(obj.wall.point1.x, obj.wall.point1.z).rotateAround({x:0, y:0}, obj.wall.mesh.rotation.y).x
+      var wall_end = v2.set(obj.wall.point2.x, obj.wall.point2.z).rotateAround({x:0, y:0}, obj.wall.mesh.rotation.y).x
+
       var ro_position = new THREE.Vector3(
-        v2.set(obj.mesh.position.x, obj.mesh.position.z).rotateAround({x:0, y:0}, obj.wall.mesh.rotation.y).x,
+        v2.set(obj.mesh.position.x, obj.mesh.position.z).rotateAround({x:0, y: 0}, obj.wall.mesh.rotation.y).x,
         obj.mesh.position.y,
         size.z/2
       )
@@ -566,13 +569,17 @@ define(function(require) {
 
           if( ray.intersectsBox(box) ) {
 
-            if(i < 2) {
+            switch(i) {
 
-              info[i] = v3.x - ro_position.x
-
-            } else {
-
-              info[i] = v3.y - ro_position.y
+              case 0:
+                info[i] = v3.x + o_size.x/2
+                break
+              case 1:
+                info[i] = v3.x - o_size.x/2
+                break
+              case 2:
+                info[i] = v3.y + o_size.y/2
+                break
 
             }
 
@@ -587,97 +594,76 @@ define(function(require) {
 
       if(!info[0]) {
 
-        info[0] = v2.set(obj.wall.point1.x, obj.wall.point1.z).rotateAround({x:0, y:0}, obj.wall.mesh.rotation.y).x - ro_position.x
+        info[0] = wall_start
 
       }
 
       if(!info[1]) {
 
-        info[1] = v2.set(obj.wall.point2.x, obj.wall.point2.z).rotateAround({x:0, y:0}, obj.wall.mesh.rotation.y).x - ro_position.x
+        info[1] = wall_end
 
       }
 
       if(!info[2]) {
 
-        info[2] = this.room._floor.position.y - ro_position.y
+        info[2] = this.room._floor.position.y
 
       }
 
-      console.log(info[0])
+      // left right
+      info[0] = [info[0] - wall_start, (ro_position.x - size.x/2) - wall_start]
+      info[1] = [info[1] - wall_start, (ro_position.x + size.x/2) - wall_start]
 
-      return
+      var z_mv = obj.wall.normal.clone().multiplyScalar(size.z/2)
 
-      if(!info[2]) {
-        //find point on floor
-        raycaster.ray.origin.copy(obj.mesh.position)
-        raycaster.ray.direction.set(...dirs[2])
+      for(var i = 0; i < 2; i++) {
 
-        var res = raycaster.intersectObject(this.room._floor, false)
+        // convert positions
+        for(var j in info[i]) {
 
-        if(res.length) {
+          info[i][j] = obj.wall.point1.clone().add(
+            obj.wall.vec.clone().multiplyScalar(info[i][j])
+          ).add(z_mv)
 
-          info[2] = res[0].point
+          info[i][j].y = obj.mesh.position.y
 
         }
 
-      }
+        // calc lines
+        var p1 = info[i][0]
+        var p2 = info[i][1]
 
-      // for(var i = 0; i < 2; i++) {
-
-      //   if(!info[i]) {
-        
-      //     info[i] = obj.wall['point' + (i + 1)].clone().multiply(
-      //       new THREE.Vector3(1,1,1).sub( new THREE.Vector3(...dirs[i]).abs() )
-      //     )
-          
-      //   }
-      // }
-
-      // console.log(info)
-
-      // show lines
-      var o_points = [
-        obj.mesh.position.clone(), 
-        obj.mesh.position.clone(), 
-        obj.mesh.position.clone()
-      ]
-
-      var rot = obj.wall.rot
-
-      var x_size = new THREE.Vector3(Math.cos(rot) * size.x/2, 0, Math.sin(rot) * size.x/2)
-
-      o_points[0].sub(x_size)
-      o_points[1].add(x_size)
-      o_points[2].y -= size.y/2
-
-      for(var i = 0; i < 3; i++) {
-
+        var l = +p1.distanceTo(p2).toFixed(2)
         var line = this.size_lines[i]
-
-        if(!info[i]) {
-
-          line.visible = false
-          continue
-
-        }
-
-        var l = +info[i].distanceTo(o_points[i]).toFixed(2)
 
         if(l > 4) {
 
           line.visible = true
-          line.position.copy(o_points[i]).sub(info[i]).divideScalar(2).add(info[i])
           line.l = l
-
-          if(i < 2) {
-
-            line.rotation.set(Math.PI/2, 0, Math.PI/2 + obj.wall.mesh.rotation.y)
-
-          } else line.rotation.set(0, Math.PI/2 + obj.wall.mesh.rotation.y, 0)
+          line.position.copy(p1.sub(p2).divideScalar(2).add(p2))
+          line.rotation.set(Math.PI/2, 0, Math.PI/2 + (2*Math.PI-obj.wall.mesh.rotation.y))
 
         } else line.visible = false
 
-      } 
+      }
+
+      // bottom
+      var p1 = obj.mesh.position.clone()
+      p1.y -= size.y/2
+      var p2 = obj.mesh.position.clone()
+      p2.y = info[2]
+
+      var l = +p1.distanceTo(p2).toFixed(2)
+      var line = this.size_lines[2]
+
+      if(l > 4) {
+
+        line.visible = true
+        line.l = l
+        line.position.copy(p1.sub(p2).divideScalar(2).add(p2))
+        line.rotation.set(0, Math.PI/2 + (obj.wall.mesh.rotation.y), 0)
+
+      } else line.visible = false
 
     }
 
