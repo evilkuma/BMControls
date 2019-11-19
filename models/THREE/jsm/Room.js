@@ -1,7 +1,10 @@
 
+const p2 = require('p2')
+
 import { Plane } from 'three/src/math/Plane'
 import { Euler } from 'three/src/math/Euler'
 import { Vector3 } from 'three/src/math/Vector3'
+import { Vector2 } from 'three/src/math/Vector2'
 import { Object3D } from 'three/src/core/Object3D'
 import { Shape } from 'three/src/extras/core/Shape'
 import { Mesh } from 'three/src/objects/Mesh'
@@ -11,7 +14,7 @@ import { MeshBasicMaterial } from 'three/src/materials/MeshBasicMaterial'
 import { LineBasicMaterial } from 'three/src/materials/LineBasicMaterial'
 import { BufferGeometry } from 'three/src/core/BufferGeometry'
 import { BufferAttribute } from 'three/src/core/BufferAttribute'
-
+import { Line } from 'three/src/objects/Line'
 
 import { SizeLine } from './SizeLine'
 
@@ -59,12 +62,12 @@ function sizesToPoints(info) {
 
 }
 
-const WALL_HEIGHT = 150
-const WALL_WEIGHT = 10
-
 /**
  * Wall class
  */
+
+var WALL_HEIGHT = 150
+var WALL_WEIGHT = 10
 
 function Wall(parent, point1, point2, caption = 'A') {
 
@@ -82,10 +85,10 @@ function Wall(parent, point1, point2, caption = 'A') {
   this.mesh = new Mesh(new BufferGeometry, new MeshStandardMaterial( { color: 0xffffff, roughness: 1, metalness: .4 } ))
   var vert = new Float32Array( [
     -.5, 0, 0,
-     .5, 0, 0,
-     .5, WALL_HEIGHT, 0,
+      .5, 0, 0,
+      .5, WALL_HEIGHT, 0,
   
-     .5, WALL_HEIGHT, 0,
+      .5, WALL_HEIGHT, 0,
     -.5, WALL_HEIGHT, 0,
     -.5, 0, 0
   ] );
@@ -95,10 +98,10 @@ function Wall(parent, point1, point2, caption = 'A') {
   this.mesh1 = new Mesh(new BufferGeometry, new MeshBasicMaterial( { color: 0xffffff } ))
   var vert = new Float32Array( [
     -.5, 0, 0,
-     .5, 0, 0,
-     .5, 0, -WALL_WEIGHT,
+      .5, 0, 0,
+      .5, 0, -WALL_WEIGHT,
   
-     .5, 0, -WALL_WEIGHT,
+      .5, 0, -WALL_WEIGHT,
     -.5, 0, -WALL_WEIGHT,
     -.5, 0, 0
   ] )
@@ -113,11 +116,32 @@ function Wall(parent, point1, point2, caption = 'A') {
   // objects from this wall (from bmcontrols)
   this.objects = []
 
+  this._shape = new p2.Box({width: 1, height: .5})
+  this._body = new p2.Body({mass: 100, fixedRotation: true})
+  this._body.type = p2.Body.STATIC
+  this._body.addShape(this._shape)
+  
+  parent.bmcontrols.p2.world.addBody(this._body)
+
+  this.world = new p2.World({ gravity:[0, 0] })
+
+  for(var i = 0, angle = 0; i < 4; i++, angle += Math.PI/2) {
+
+    var body = new p2.Body({angle})
+    body.addShape(new p2.Plane())
+
+    this.world.addBody(body)
+
+  }
+
+  this.world.bodies[2].position[1] = WALL_HEIGHT
+
   if(point1 && point2) {
 
     this.setFromPoints(point1, point2)
 
   }
+
 
 }
 
@@ -126,6 +150,9 @@ Wall.prototype = Object.create(Plane.prototype)
 Wall.prototype.HEIGHT = WALL_HEIGHT
 
 Wall.prototype.setFromPoints = function(point1, point2) {
+
+  point1.toFixed(0)
+  point2.toFixed(0)
 
   this.point1 = point1
   this.point2 = point2
@@ -156,9 +183,11 @@ Wall.prototype.remove = function() {
 
   var idx = this.parent._walls.indexOf(this)
   this.parent._walls.splice(idx, 1)
+  if(this.gui) this.gui.remove()
   if(this.mesh && this.mesh.parent) this.mesh.parent.remove(this.mesh)
   if(this.mesh1 && this.mesh1.parent) this.mesh1.parent.remove(this.mesh1)
   if(this.line && this.line.parent) this.line.parent.remove(this.line)
+  if(this._body && this._body.world) this._body.world.removeBody(this._body)
 
 }
 
@@ -521,6 +550,18 @@ Wall.prototype.update = function() {
 
   })
 
+  this._shape.constructor({width: this.l + (this.cantFullLen ? 0 : 100), height: 100})
+
+  var body_position = this.normal.clone().multiplyScalar(-50).add(this.position)
+
+  this._body.position[0] = body_position.x
+  this._body.position[1] = body_position.z
+
+  this._body.angle = +this.rot.toFixed(10)
+
+  this.world.bodies[3].position[0] = -this.l/2
+  this.world.bodies[1].position[0] = this.l/2
+
 }
 
 Wall.prototype.ray = function(ray) {
@@ -540,16 +581,20 @@ Wall.prototype.ray = function(ray) {
 Wall.prototype.addObj = function(obj) {
 
   this.objects.push(obj)
+  this.world.addBody(obj._body)
+  
+  obj.setRotation(this.mesh.rotation.y)
 
 }
 
 Wall.prototype.removeObj = function(obj) {
-    
+  
   var i = this.objects.indexOf(obj)
 
   if(i === -1) return false
 
   this.objects.splice(i, 1)
+  this.world.removeBody(obj._body)
 
   return true
 
@@ -632,16 +677,17 @@ Object.defineProperties(Wall.prototype, {
  * Room class
  */
 
-const START_CHAR_CODE = 65 // A
+var START_CHAR_CODE = 65 // A
 var CURRENT_CHAR_CODE = START_CHAR_CODE
 
-function Room(points) {
+function Room(points, parent) {
 
   this.constructor()
 
   this._walls = []
   this._floor = null
   this._plane = new Plane(new Vector3(0, 1, 0))
+  this.bmcontrols = parent
 
   if(points && points.length) {
 
@@ -670,6 +716,21 @@ Room.prototype.setWalls = function(points) {
     this.add(wall.getFullMesh())
 
     CURRENT_CHAR_CODE++
+
+  }
+
+  for(var wall of this._walls) {
+
+    var w = wall.getNextWall()
+    if(wall.vec.angleTo(w.normal) === 0) {
+
+      wall.cantFullLen = true
+      w.cantFullLen = true
+
+      wall.update()
+      w.update()
+
+    }
 
   }
 
@@ -727,7 +788,7 @@ Room.prototype.updateFloor = function() {
 
   geom.lineTo(wall.point2.x, -wall.point2.z)
 
-  this._floor = new THREE.Mesh(
+  this._floor = new Mesh(
     new ShapeGeometry(geom),
     new MeshStandardMaterial( { color: 0xC04000, roughness: 1, metalness: .4 } )
   )
