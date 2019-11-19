@@ -153,8 +153,7 @@ define(function(require) {
     raycaster.setFromCamera( self.mouse, self.scene.camera )
 
     if(self.obj.type === 'floor' || self.obj.type === 'full') {
-
-      // TODO rotate by wall
+      
       var pos, wall
 
       for(wall of self.room._walls) {
@@ -459,9 +458,12 @@ define(function(require) {
             var abs_dir = ray.direction.clone().abs()
             var v = i < 2 ? 'x' : 'z'
   
-            info[i] = o.mesh.position.clone().multiply(abs_dir).add( 
+            var n_v = o.mesh.position.clone().multiply(abs_dir).add( 
               obj.mesh.position.clone().multiply( new THREE.Vector3(1,1,1).sub(abs_dir) )
             ).add(ray.direction.multiplyScalar(-o_size[v]/2))
+
+            if(!info[i] || n_v.distanceTo(obj.mesh.position) < info[i].distanceTo(obj.mesh.position)) 
+              info[i] = n_v
   
             // 1 оьект может пересекаться только с 1 стороной, потому нет смысла проходить весь цикл
             break 
@@ -572,10 +574,14 @@ define(function(require) {
             switch(i) {
 
               case 0:
-                info[i] = v3.x + o_size.x/2
+                var n_v = v3.x + o_size.x/2
+                if(!info[i] || Math.abs(n_v-ro_position.x) < Math.abs(info[i]-ro_position.x))
+                  info[i] = n_v
                 break
               case 1:
-                info[i] = v3.x - o_size.x/2
+                var n_v = v3.x - o_size.x/2
+                if(!info[i] || Math.abs(n_v-ro_position.x) < Math.abs(info[i]-ro_position.x))
+                  info[i] = n_v
                 break
               case 2:
                 info[i] = v3.y + o_size.y/2
