@@ -308,6 +308,7 @@ function BMControl({ scene, points = [], dom = document.body, ocontrol } = {}) {
 
   this.p2.world.defaultContactMaterial.friction = 0.0;
   this.p2.world.setGlobalStiffness(1e10);
+  this.p2.world.defaultContactMaterial.relaxation = 1e10;
 
   this.room = new Room(points, this)
   this.enable(true)
@@ -768,41 +769,43 @@ function updateWorld(world, obj, callback) {
 
   world.step(1/60)
 
-  setTimeout(e => {
+  if(id) {
 
-    world.step(1/60)
+    id--
 
     setTimeout(e => {
-
-      world.step(1/60)
-
-      if(obj) {
-        
-        if(obj.constructor === BMObject) {
-
-          obj.update()
-          obj._body.velocity[0] = 0
-          obj._body.velocity[1] = 0
-
-        } else if(Array.isArray(obj)) {
-
-          obj.forEach(o => {
-
-            o.update()
-            o._body.velocity[0] = 0
-            o._body.velocity[1] = 0
-
-          })
-
-        }
-
-      }
-
-      if(callback) callback(world, obj)
+    
+      updateWorld(world, obj, callback, id)
 
     }, 10)
 
-  }, 10)
+    return
+
+  }
+
+  if(obj) {
+
+    if(obj.constructor === BMObject) {
+
+      obj.update()
+      obj._body.velocity[0] = 0
+      obj._body.velocity[1] = 0
+
+    } else if(Array.isArray(obj)) {
+
+      obj.forEach(o => {
+
+        o.update()
+        o._body.velocity[0] = 0
+        o._body.velocity[1] = 0
+
+      })
+
+    }
+
+  }
+
+  if(callback) callback(world, obj)
 
 }
 

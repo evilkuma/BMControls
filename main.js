@@ -109,7 +109,7 @@
         key: 'soldier', 
         title: 'soldier',
         data: {
-          type: 'wall',
+          type: 'floor',
           position: true
         }
       },
