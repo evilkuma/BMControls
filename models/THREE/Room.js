@@ -102,26 +102,28 @@ define(function(require) {
 
     // objects from this wall (from bmcontrols)
     this.objects = []
-
-    this._shape = new p2.Box({width: 1, height: .5})
-    this._body = new p2.Body({mass: 100, fixedRotation: true})
-    this._body.type = p2.Body.STATIC
+    
+    this._shape = new CANNON.Box(new CANNON.Vec3(.5, 10000, .25))
+    this._body = new CANNON.Body({mass: 0})
+    this._body.fixedRotation = true
     this._body.addShape(this._shape)
     
-    parent.bmcontrols.p2.world.addBody(this._body)
+    parent.bmcontrols.CANNON.world.addBody(this._body)
 
-    this.world = new p2.World({ gravity:[0, 0] })
+    // TODO перетягивание по стене
+    
+    // this.world = new p2.World({ gravity:[0, 0] })
 
-    for(var i = 0, angle = 0; i < 4; i++, angle += Math.PI/2) {
+    // for(var i = 0, angle = 0; i < 4; i++, angle += Math.PI/2) {
 
-      var body = new p2.Body({angle})
-      body.addShape(new p2.Plane())
+    //   var body = new p2.Body({angle})
+    //   body.addShape(new p2.Plane())
 
-      this.world.addBody(body)
+    //   this.world.addBody(body)
 
-    }
+    // }
 
-    this.world.bodies[2].position[1] = WALL_HEIGHT
+    // this.world.bodies[2].position[1] = WALL_HEIGHT
 
     if(point1 && point2) {
 
@@ -547,17 +549,23 @@ define(function(require) {
 
     })
 
-    this._shape.constructor({width: this.l + (this.cantFullLen ? 0 : 100), height: 100})
+    //TODO fixing cantFullLen
 
-    var body_position = this.normal.clone().multiplyScalar(-50).add(this.position)
+    this._shape.constructor(new CANNON.Vec3(
+      ( this.l / 2 ) + ( this.cantFullLen ? 0 : 10000 ), 
+      10000, 
+      10000
+    ))
 
-    this._body.position[0] = body_position.x
-    this._body.position[1] = body_position.z
+    var body_position = this.normal.clone().multiplyScalar(-10000).add(this.position)
 
-    this._body.angle = +this.rot.toFixed(10)
+    this._body.position.x = body_position.x
+    this._body.position.z = body_position.z
 
-    this.world.bodies[3].position[0] = -this.l/2
-    this.world.bodies[1].position[0] = this.l/2
+    this._body.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0), -this.rot.toFixed(10))
+
+    // this.world.bodies[3].position[0] = -this.l/2
+    // this.world.bodies[1].position[0] = this.l/2
 
   }
 
