@@ -102,35 +102,34 @@ define(function(require) {
 
     // objects from this wall (from bmcontrols)
     this.objects = []
-    
-    this._shape = new CANNON.Box(new CANNON.Vec3(.5, 10000, .25))
-    this._body = new CANNON.Body({mass: 0})
-    this._body.fixedRotation = true
-    this._body.addShape(this._shape)
-    
-    parent.bmcontrols.CANNON.world.addBody(this._body)
 
-    // TODO перетягивание по стене
-    
-    // this.world = new p2.World({ gravity:[0, 0] })
+    var cannonMesh = () => {
 
-    // for(var i = 0, angle = 0; i < 4; i++, angle += Math.PI/2) {
+      var shape = new CANNON.Box(new CANNON.Vec3(.5, 10000, .25))
+      var body = new CANNON.Body({mass: 0})
+      body.fixedRotation = true
+      body.addShape(shape)
 
-    //   var body = new p2.Body({angle})
-    //   body.addShape(new p2.Plane())
+      return { body, shape }
 
-    //   this.world.addBody(body)
+    };
 
-    // }
+    this.CANNON = {
 
-    // this.world.bodies[2].position[1] = WALL_HEIGHT
+      loc: cannonMesh(),
+      def: cannonMesh(),
+      world: parent.CANNON.world
+
+    }
+
+    parent.bmcontrols.CANNON.world.addBody(this.CANNON.def.body)
+    parent.CANNON.world.addBody(this.CANNON.loc.body)
 
     if(point1 && point2) {
 
       this.setFromPoints(point1, point2)
 
     }
-
 
   }
 
@@ -186,7 +185,12 @@ define(function(require) {
     if(this.mesh && this.mesh.parent) this.mesh.parent.remove(this.mesh)
     if(this.mesh1 && this.mesh1.parent) this.mesh1.parent.remove(this.mesh1)
     if(this.line && this.line.parent) this.line.parent.remove(this.line)
-    if(this._body && this._body.world) this._body.world.removeBody(this._body)
+
+    for(var k of ['loc', 'def']) {
+
+      this.CANNON[k].body.world.removeBody(this.CANNON[k])
+
+    }
 
   }
 
@@ -551,21 +555,23 @@ define(function(require) {
 
     //TODO fixing cantFullLen
 
-    this._shape.constructor(new CANNON.Vec3(
-      ( this.l / 2 ) + ( this.cantFullLen ? 0 : 10000 ), 
-      10000, 
-      10000
-    ))
-
     var body_position = this.normal.clone().multiplyScalar(-10000).add(this.position)
 
-    this._body.position.x = body_position.x
-    this._body.position.z = body_position.z
+    for(var k of ['loc', 'def']) {
 
-    this._body.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0), -this.rot.toFixed(10))
+      var c = this.CANNON[k]
 
-    // this.world.bodies[3].position[0] = -this.l/2
-    // this.world.bodies[1].position[0] = this.l/2
+      c.shape.constructor(new CANNON.Vec3(
+        ( this.l / 2 ) + ( this.cantFullLen ? 0 : 10000 ), 
+        10000, 
+        10000
+      ))
+
+      c.body.position.x = body_position.x
+      c.body.position.z = body_position.z
+      c.body.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0), -this.rot.toFixed(10))
+
+    }
 
   }
 
@@ -586,7 +592,7 @@ define(function(require) {
   Wall.prototype.addObj = function(obj) {
 
     this.objects.push(obj)
-    this.world.addBody(obj._body)
+    this.parent.CANNON.world.addBody(obj._body)
     
     obj.setRotation(this.mesh.rotation.y)
 
@@ -599,7 +605,7 @@ define(function(require) {
     if(i === -1) return false
 
     this.objects.splice(i, 1)
-    this.world.removeBody(obj._body)
+    this.parent.CANNON.world.removeBody(obj._body)
 
     return true
 
@@ -699,6 +705,14 @@ define(function(require) {
       this.setWalls(points)
 
     }
+
+    this.CANNON = {
+
+      world: new CANNON.World
+
+    }
+
+    this.CANNON.world.gravity.set(0,0,0)
 
   }
 

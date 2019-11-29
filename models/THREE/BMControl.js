@@ -35,11 +35,16 @@ define(function(require) {
 
   BMObject.prototype.updateShape = function() {
 
-    var width = this.size.x, height = this.type === 'floor' ? this.size.z : this.size.y
+    if(this.type === 'floor') {
 
-    // add remove shape
+      this._shape = new CANNON.Box(new CANNON.Vec3(this.size.x/2, 10000, this.size.z/2))
+  
+    } else
+    if(this.type === 'wall') {
 
-    this._shape = new CANNON.Box(new CANNON.Vec3(width/2, 10000, height/2))
+      this._shape = new CANNON.Box(new CANNON.Vec3(this.size.x/2, this.size.y/2, this.size.z/2))
+
+    }
 
     this._body.addShape(this._shape)
     this._body.updateMassProperties()
@@ -50,10 +55,19 @@ define(function(require) {
 
   BMObject.prototype.setPosition = function(vec) {
 
-    var x = vec.x, y = this.type === 'floor' ? vec.z : vec.y
+    if(this.type === 'floor') {
 
-    this._body.position.x = x
-    this._body.position.z = y
+      this.mesh.position.x = vec.x
+      this.mesh.position.z = vec.z
+
+    } else
+    if(this.type === 'wall') {
+
+      this.mesh.position.x = vec.x
+      this.mesh.position.y = vec.y
+      this.mesh.position.z = vec.z
+
+    }
 
     return this
 
@@ -63,20 +77,12 @@ define(function(require) {
 
     if(this.type === 'floor') {
 
-      this.mesh.position.x = this._body.position.x
-      this.mesh.position.z = this._body.position.z
+      this.setPosition(this._body.position)
 
-    } else {
+    } else
+    if(this.type === 'wall'){
 
-      // if(!this.wall) return
-
-      // var pos = this.wall.position.clone()
-      //   .add(this.wall.vec.clone().multiplyScalar(this._body.position[0]))
-      //   .add(this.wall.rvec.clone().multiplyScalar(this.size.z/2))
-
-      // this.mesh.position.x = pos.x
-      // this.mesh.position.y = this._body.position[1]
-      // this.mesh.position.z = pos.z
+      this.setPosition(this._body.position)
 
     }
 
@@ -87,6 +93,7 @@ define(function(require) {
   BMObject.prototype.remove = function() {
 
     this.mesh.parent.remove(this.mesh)
+    this._body.world.remove(this._body)
     this.parent.remove(this)
 
     return this
@@ -95,9 +102,7 @@ define(function(require) {
 
   BMObject.prototype.setRotation = function(rot) {
 
-    if(this.type !== 'wall') 
-      this._body.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0), rot)
-
+    this._body.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0), rot)
     this.mesh.rotation.y = rot
 
     return this
@@ -154,19 +159,19 @@ define(function(require) {
     // настраиваем кастер и пуляем луч в плэйн пола
     raycaster.setFromCamera( self.mouse, self.scene.camera )
 
-    if(self.obj.type === 'floor' || self.obj.type === 'full') {
-      
-      var pos, wall
+    var pos, wall
 
-      for(wall of self.room._walls) {
-        
-        if(pos = wall.ray(raycaster)) {
-  
-          break
-  
-        }
+    for(wall of self.room._walls) {
+      
+      if(pos = wall.ray(raycaster)) {
+
+        break
 
       }
+
+    }
+
+    if(self.obj.type === 'floor' || self.obj.type === 'full') {
 
       if(pos) self.obj.setRotation(wall.mesh.rotation.y)
 
@@ -177,80 +182,40 @@ define(function(require) {
       self.obj._body.position.x = intersect.x
       self.obj._body.position.z = intersect.z
 
+      updateWorld(self.CANNON.world, self.obj, () => {
 
-      for(var i = 0; i < 25; i++) {
+        self.updateSizeLines(self.obj)
 
-        self.CANNON.world.step(1/60)
+      })
+
+    } else if(self.obj.type === 'wall') {
+
+      if(!pos) return
+
+      if(self.obj.wall !== wall) {
+
+        if(self.obj.wall) {
+
+          self.obj.wall.removeObj(self.obj)
+
+        }
+
+        wall.addObj(self.obj)
+        self.obj.wall = wall
 
       }
+      
+      self.obj._body.position.x = pos.x
+      self.obj._body.position.y = pos.y
+      self.obj._body.position.z = pos.z
 
-      self.obj.update()
+      updateWorld(wall.CANNON.world, self.obj, () => {
 
-      // var mv = intersect.clone().sub({x: self.obj._body.position[0], y: 0, z: self.obj._body.position[1]}) //.multiplyScalar(10)
-      // var len = mv.length()
-      // mv.normalize().multiplyScalar(len*10)
-      // self.obj._body.velocity[0] = mv.x
-      // self.obj._body.velocity[1] = mv.z
+        self.updateSizeLines(self.obj)
 
-      // updateWorld(self.p2.world, self.obj, () => {
-
-      //   self.updateSizeLines(self.obj)
-
-      // })
+      })
 
     }
-
-    // if(self.obj.type === 'wall') {
-
-    //   var wall, pos = false
-
-    //   for(wall of self.room._walls) {
-        
-    //     if(pos = wall.ray(raycaster)) {
-  
-    //       break
-  
-    //     }
-
-    //   }
-
-    //   if(!pos) return
-
-    //   if(self.obj.wall !== wall) {
-
-    //     if(self.obj.wall) {
-
-    //       self.obj.wall.removeObj(self.obj)
-  
-    //     }
-
-    //     wall.addObj(self.obj)
-    //     self.obj.wall = wall
-  
-    //     var x = new THREE.Vector2(pos.x, pos.z).rotateAround({x:0, y:0}, wall.mesh.rotation.y).x
-
-    //     self.obj._body.position[0] = x
-
-    //   } else {
-
-    //     var mv = pos.clone().sub(self.obj.mesh.position)
-    //     var len = mv.length()
-    //     mv.normalize().multiplyScalar(len*10)
-  
-    //     var x = new THREE.Vector2(mv.x, mv.z).rotateAround({x:0, y:0}, wall.mesh.rotation.y).x
-        
-    //     self.obj._body.velocity[0] = x
-    //     self.obj._body.velocity[1] = mv.y
-
-    //   }
-
-    //   updateWorld(wall.world, self.obj, () => {
-
-    //     self.updateSizeLines(self.obj)
-
-    //   })
-
-    // }
 
   }
 
@@ -319,8 +284,6 @@ define(function(require) {
     // второй обьект притянутый к стене
     // прилипает к первому со стороны стены
 
-    
-
     this.room = new Room(points, this)
     this.enable(true)
 
@@ -342,7 +305,7 @@ define(function(require) {
 
       this.objects.push(new BMObject( Object.assign({ parent: this }, obj) ))
 
-      // updateWorld(this.p2.world, this.objects)
+      updateWorld(this.CANNON.world, this.objects)
 
     }
 
@@ -378,11 +341,6 @@ define(function(require) {
       
     }
 
-    // for(var o of this.objects) {
-
-    //   o._body.type = p2.Body.KINEMATIC
-
-    // }
     for(var o of this.objects) {
 
       if(o === obj) {
@@ -420,8 +378,6 @@ define(function(require) {
     this.obj = null
     this.updateSizeLines()
 
-    // this.objects.forEach(obj => obj._body.type = p2.Body.DYNAMIC)
-
     if(this.ocontrol && !this.ocontrol.enabled) {
 
       this.ocontrol.enabled = true
@@ -456,8 +412,6 @@ define(function(require) {
       return
 
     }
-
-    // TODO fix distance
 
     if(obj.type === 'floor') {
 
@@ -791,41 +745,23 @@ define(function(require) {
 
   }
 
-  function updateWorld(world, obj, callback, id = 4) {
+  function updateWorld(world, obj, callback) {
 
-    world.step(1/60)
+    for(var i = 0; i < 25; i++) {
 
-    if(id) {
-
-      id--
-
-      setTimeout(e => {
-      
-        updateWorld(world, obj, callback, id)
-  
-      }, 10)
-
-      return
+      world.step(1/60)
 
     }
 
-    if(obj) {
+    if(!!obj) {
 
-      if(obj.constructor === BMObject) {
+      if(Array.isArray(obj)) {
+
+        obj.forEach( o => o.update() )
+
+      } else {
 
         obj.update()
-        obj._body.velocity[0] = 0
-        obj._body.velocity[1] = 0
-
-      } else if(Array.isArray(obj)) {
-
-        obj.forEach(o => {
-
-          o.update()
-          o._body.velocity[0] = 0
-          o._body.velocity[1] = 0
-
-        })
 
       }
 
