@@ -795,6 +795,8 @@ define(function(require) {
 
     if(this._floor && this._floor.parent) this._floor.parent.remove(this._floor) 
 
+    if(!this._walls.length) return
+
     var geom = new THREE.Shape
 
     geom.moveTo(this._walls[0].point1.x, -this._walls[0].point1.z)
@@ -829,6 +831,14 @@ define(function(require) {
 
     }
 
+  }
+
+  Room.prototype.clear = function() {
+
+    this.setWalls([])
+  
+    return this
+  
   }
 
   return Room

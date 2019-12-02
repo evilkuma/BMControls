@@ -1,5 +1,5 @@
 
-const p2 = require('p2')
+const CANNON = require('cannon')
 
 import { Plane } from 'three/src/math/Plane'
 import { Euler } from 'three/src/math/Euler'
@@ -85,10 +85,10 @@ function Wall(parent, point1, point2, caption = 'A') {
   this.mesh = new Mesh(new BufferGeometry, new MeshStandardMaterial( { color: 0xffffff, roughness: 1, metalness: .4 } ))
   var vert = new Float32Array( [
     -.5, 0, 0,
-      .5, 0, 0,
-      .5, WALL_HEIGHT, 0,
+     .5, 0, 0,
+     .5, WALL_HEIGHT, 0,
   
-      .5, WALL_HEIGHT, 0,
+     .5, WALL_HEIGHT, 0,
     -.5, WALL_HEIGHT, 0,
     -.5, 0, 0
   ] );
@@ -98,10 +98,10 @@ function Wall(parent, point1, point2, caption = 'A') {
   this.mesh1 = new Mesh(new BufferGeometry, new MeshBasicMaterial( { color: 0xffffff } ))
   var vert = new Float32Array( [
     -.5, 0, 0,
-      .5, 0, 0,
-      .5, 0, -WALL_WEIGHT,
+     .5, 0, 0,
+     .5, 0, -WALL_WEIGHT,
   
-      .5, 0, -WALL_WEIGHT,
+     .5, 0, -WALL_WEIGHT,
     -.5, 0, -WALL_WEIGHT,
     -.5, 0, 0
   ] )
@@ -116,32 +116,33 @@ function Wall(parent, point1, point2, caption = 'A') {
   // objects from this wall (from bmcontrols)
   this.objects = []
 
-  this._shape = new p2.Box({width: 1, height: .5})
-  this._body = new p2.Body({mass: 100, fixedRotation: true})
-  this._body.type = p2.Body.STATIC
-  this._body.addShape(this._shape)
-  
-  parent.bmcontrols.p2.world.addBody(this._body)
+  var cannonMesh = () => {
 
-  this.world = new p2.World({ gravity:[0, 0] })
+    var shape = new CANNON.Box(new CANNON.Vec3(.5, 10000, .25))
+    var body = new CANNON.Body({mass: 0})
+    body.fixedRotation = true
+    body.addShape(shape)
 
-  for(var i = 0, angle = 0; i < 4; i++, angle += Math.PI/2) {
+    return { body, shape }
 
-    var body = new p2.Body({angle})
-    body.addShape(new p2.Plane())
+  };
 
-    this.world.addBody(body)
+  this.CANNON = {
+
+    loc: cannonMesh(),
+    def: cannonMesh(),
+    world: parent.CANNON.world
 
   }
 
-  this.world.bodies[2].position[1] = WALL_HEIGHT
+  parent.bmcontrols.CANNON.world.addBody(this.CANNON.def.body)
+  parent.CANNON.world.addBody(this.CANNON.loc.body)
 
   if(point1 && point2) {
 
     this.setFromPoints(point1, point2)
 
   }
-
 
 }
 
@@ -187,7 +188,12 @@ Wall.prototype.remove = function() {
   if(this.mesh && this.mesh.parent) this.mesh.parent.remove(this.mesh)
   if(this.mesh1 && this.mesh1.parent) this.mesh1.parent.remove(this.mesh1)
   if(this.line && this.line.parent) this.line.parent.remove(this.line)
-  if(this._body && this._body.world) this._body.world.removeBody(this._body)
+
+  for(var k of ['loc', 'def']) {
+
+    this.CANNON[k].body.world.removeBody(this.CANNON[k])
+
+  }
 
 }
 
@@ -550,17 +556,25 @@ Wall.prototype.update = function() {
 
   })
 
-  this._shape.constructor({width: this.l + (this.cantFullLen ? 0 : 100), height: 100})
+  //TODO fixing cantFullLen
 
-  var body_position = this.normal.clone().multiplyScalar(-50).add(this.position)
+  var body_position = this.normal.clone().multiplyScalar(-10000).add(this.position)
 
-  this._body.position[0] = body_position.x
-  this._body.position[1] = body_position.z
+  for(var k of ['loc', 'def']) {
 
-  this._body.angle = +this.rot.toFixed(10)
+    var c = this.CANNON[k]
 
-  this.world.bodies[3].position[0] = -this.l/2
-  this.world.bodies[1].position[0] = this.l/2
+    c.shape.constructor(new CANNON.Vec3(
+      ( this.l / 2 ) + ( this.cantFullLen ? 0 : 10000 ), 
+      10000, 
+      10000
+    ))
+
+    c.body.position.x = body_position.x
+    c.body.position.z = body_position.z
+    c.body.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0), -this.rot.toFixed(10))
+
+  }
 
 }
 
@@ -581,7 +595,7 @@ Wall.prototype.ray = function(ray) {
 Wall.prototype.addObj = function(obj) {
 
   this.objects.push(obj)
-  this.world.addBody(obj._body)
+  this.parent.CANNON.world.addBody(obj._body)
   
   obj.setRotation(this.mesh.rotation.y)
 
@@ -594,7 +608,7 @@ Wall.prototype.removeObj = function(obj) {
   if(i === -1) return false
 
   this.objects.splice(i, 1)
-  this.world.removeBody(obj._body)
+  this.parent.CANNON.world.removeBody(obj._body)
 
   return true
 
@@ -695,6 +709,14 @@ function Room(points, parent) {
 
   }
 
+  this.CANNON = {
+
+    world: new CANNON.World
+
+  }
+
+  this.CANNON.world.gravity.set(0,0,0)
+
 }
 
 Room.prototype = Object.create(Object3D.prototype)
@@ -776,6 +798,8 @@ Room.prototype.updateFloor = function() {
 
   if(this._floor && this._floor.parent) this._floor.parent.remove(this._floor) 
 
+  if(!this._walls.length) return
+  
   var geom = new Shape
 
   geom.moveTo(this._walls[0].point1.x, -this._walls[0].point1.z)
@@ -809,6 +833,14 @@ Room.prototype.showY = function(is = !this._walls[0].mesh1.visible) {
     wall.line.visible = is
 
   }
+
+}
+
+Room.prototype.clear = function() {
+
+  this.setWalls([])
+
+  return this
 
 }
 

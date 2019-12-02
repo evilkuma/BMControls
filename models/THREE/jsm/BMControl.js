@@ -1,5 +1,5 @@
 
-const p2 = require('p2')
+const CANNON = require('cannon')
 
 import { Room } from './Room'
 import { SizeLine } from './SizeLine'
@@ -23,12 +23,14 @@ function BMObject(data) {
   this.parent = data.parent
 
   this._shape
-  this._body = new p2.Body({ mass: 1, angle: 0, fixedRotation: true })
-  this._body.type = p2.Body.DYNAMIC
+  this._body = new CANNON.Body({ mass: 1 })
+  this._body.fixedRotation = true
+  this._body.linearDamping = .999999999
+  this._body.bmobject = this
   this.updateShape()
 
   if(this.type === 'floor') 
-    this.parent.p2.world.addBody(this._body)
+    this.parent.CANNON.world.addBody(this._body)
 
   if(data.position) {
 
@@ -40,14 +42,47 @@ function BMObject(data) {
 
 BMObject.prototype.updateShape = function() {
 
-  var width = this.size.x, height = this.type === 'floor' ? this.size.z : this.size.y
+  if(this.type === 'floor') {
 
-  // add remove shape
+    this._shape = new CANNON.Box(new CANNON.Vec3(this.size.x/2, 10000, this.size.z/2))
 
-  this._shape = new p2.Box({ width, height })
-  // this._shape.material = this.parent.p2.materials[0]
+  } else
+  if(this.type === 'wall') {
+
+    this._shape = new CANNON.Box(new CANNON.Vec3(this.size.x/2, this.size.y/2, this.size.z/2))
+
+  }
 
   this._body.addShape(this._shape)
+  this._body.updateMassProperties()
+
+  return this
+
+}
+
+BMObject.prototype.setBodyPosition = function(vec) {
+
+  if(this.type === 'floor') {
+
+    this._body.position.x = vec.x
+    this._body.position.z = vec.z
+
+  } else
+  if(this.type === 'wall') {
+
+    this._body.position.x = vec.x
+    this._body.position.y = vec.y
+    this._body.position.z = vec.z
+
+    if(this.wall) {
+
+      var mv = this.wall.normal.clone().multiplyScalar(this.size.z/2 + 1)
+      this._body.position.x += mv.x
+      this._body.position.z += mv.z
+
+    }
+
+  }
 
   return this
 
@@ -55,10 +90,19 @@ BMObject.prototype.updateShape = function() {
 
 BMObject.prototype.setPosition = function(vec) {
 
-  var x = vec.x, y = this.type === 'floor' ? vec.z : vec.y
+  if(this.type === 'floor') {
 
-  this._body.position[0] = x
-  this._body.position[1] = y
+    this.mesh.position.x = vec.x
+    this.mesh.position.z = vec.z
+
+  } else
+  if(this.type === 'wall') {
+
+    this.mesh.position.x = vec.x
+    this.mesh.position.y = vec.y
+    this.mesh.position.z = vec.z
+
+  }
 
   return this
 
@@ -68,20 +112,12 @@ BMObject.prototype.update = function() {
 
   if(this.type === 'floor') {
 
-    this.mesh.position.x = this._body.position[0]
-    this.mesh.position.z = this._body.position[1]
+    this.setPosition(this._body.position)
 
-  } else {
+  } else
+  if(this.type === 'wall'){
 
-    if(!this.wall) return
-
-    var pos = this.wall.position.clone()
-      .add(this.wall.vec.clone().multiplyScalar(this._body.position[0]))
-      .add(this.wall.rvec.clone().multiplyScalar(this.size.z/2))
-
-    this.mesh.position.x = pos.x
-    this.mesh.position.y = this._body.position[1]
-    this.mesh.position.z = pos.z
+    this.setPosition(this._body.position)
 
   }
 
@@ -92,6 +128,7 @@ BMObject.prototype.update = function() {
 BMObject.prototype.remove = function() {
 
   this.mesh.parent.remove(this.mesh)
+  this._body.world.remove(this._body)
   this.parent.remove(this)
 
   return this
@@ -100,8 +137,7 @@ BMObject.prototype.remove = function() {
 
 BMObject.prototype.setRotation = function(rot) {
 
-  if(this.type !== 'wall') 
-    this._body.angle = -rot
+  this._body.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0), rot)
   this.mesh.rotation.y = rot
 
   return this
@@ -158,54 +194,52 @@ function moveSelected(self) {
   // настраиваем кастер и пуляем луч в плэйн пола
   raycaster.setFromCamera( self.mouse, self.scene.camera )
 
-  if(self.obj.type === 'floor' || self.obj.type === 'full') {
+  var pos, wall
 
-    // TODO rotate by wall
-    var pos, wall
+  for(wall of self.room._walls) {
+    
+    if(pos = wall.ray(raycaster)) {
 
-    for(wall of self.room._walls) {
-      
-      if(pos = wall.ray(raycaster)) {
-
-        break
-
-      }
+      break
 
     }
 
+  }
+
+  if(self.obj.type === 'floor' || self.obj.type === 'full') {
+
     if(pos) self.obj.setRotation(wall.mesh.rotation.y)
 
-    var intersect = raycaster.ray.intersectPlane( self.room._plane, self.p2.toPosition )
+    var intersect = raycaster.ray.intersectPlane( self.room._plane, self.CANNON.toPosition )
     // если мимо ничего не делаем (правда это анрил, но на всяк)
     if(!intersect) return false
 
-    var mv = intersect.clone().sub({x: self.obj._body.position[0], y: 0, z: self.obj._body.position[1]}) //.multiplyScalar(10)
-    var len = mv.length()
-    mv.normalize().multiplyScalar(len*10)
-    self.obj._body.velocity[0] = mv.x
-    self.obj._body.velocity[1] = mv.z
+    // if(self.obj.wall !== wall) {
 
-    updateWorld(self.p2.world, self.obj, () => {
+    //   if(self.obj.wall) {
+
+    //     self.obj.wall.removeObj(self.obj)
+
+    //   }
+
+    //   wall.addObj(self.obj)
+    //   self.obj.wall = wall
+
+    // }
+    
+    // self.obj.setBodyPosition(intersect)
+    var len = intersect.sub(self.obj.mesh.position).toFixed().length()
+    var mv = intersect.normalize().multiplyScalar(len*10)
+    self.obj._body.velocity.x = mv.x
+    self.obj._body.velocity.z = mv.z
+
+    updateWorld(self.CANNON.world, self.obj, () => {
 
       self.updateSizeLines(self.obj)
 
     })
 
-  }
-
-  if(self.obj.type === 'wall') {
-
-    var wall, pos = false
-
-    for(wall of self.room._walls) {
-      
-      if(pos = wall.ray(raycaster)) {
-
-        break
-
-      }
-
-    }
+  } else if(self.obj.type === 'wall') {
 
     if(!pos) return
 
@@ -220,24 +254,15 @@ function moveSelected(self) {
       wall.addObj(self.obj)
       self.obj.wall = wall
 
-      var x = new Vector2(pos.x, pos.z).rotateAround({x:0, y:0}, wall.mesh.rotation.y).x
-
-      self.obj._body.position[0] = x
-
-    } else {
-
-      var mv = pos.clone().sub(self.obj.mesh.position)
-      var len = mv.length()
-      mv.normalize().multiplyScalar(len*10)
-
-      var x = new Vector2(mv.x, mv.z).rotateAround({x:0, y:0}, wall.mesh.rotation.y).x
-      
-      self.obj._body.velocity[0] = x
-      self.obj._body.velocity[1] = mv.y
-
     }
+    
+    var len = pos.sub(self.obj.mesh.position).toFixed().length()
+    var mv = pos.normalize().multiplyScalar(len*10)
+    self.obj._body.velocity.x = mv.x
+    self.obj._body.velocity.y = mv.y
+    self.obj._body.velocity.z = mv.z
 
-    updateWorld(wall.world, self.obj, () => {
+    updateWorld(wall.CANNON.world, self.obj, () => {
 
       self.updateSizeLines(self.obj)
 
@@ -297,18 +322,20 @@ function BMControl({ scene, points = [], dom = document.body, ocontrol } = {}) {
    */
   this.moveTimeout = null
 
-  // p2
-  this.p2 = {
+  // CANNON
+  this.CANNON = {
 
-    world: new p2.World({ gravity:[0, 0] }),
+    world: new CANNON.World,
     // tmp
     toPosition: new Vector3
 
   }
 
-  this.p2.world.defaultContactMaterial.friction = 0.0;
-  this.p2.world.setGlobalStiffness(1e10);
-  this.p2.world.defaultContactMaterial.relaxation = 1e10;
+  this.CANNON.world.gravity.set(0, 0, 0);
+
+  // TODO (исправить) когда возле стены есть обьект
+  // второй обьект притянутый к стене
+  // прилипает к первому со стороны стены
 
   this.room = new Room(points, this)
   this.enable(true)
@@ -331,7 +358,7 @@ BMControl.prototype.add = function() {
 
     this.objects.push(new BMObject( Object.assign({ parent: this }, obj) ))
 
-    updateWorld(this.p2.world, this.objects)
+    updateWorld(this.CANNON.world, this.objects)
 
   }
 
@@ -369,11 +396,20 @@ BMControl.prototype.selectedObject = function(obj) {
 
   for(var o of this.objects) {
 
-    o._body.type = p2.Body.KINEMATIC
+    if(o === obj) {
+
+      o._body.mass = 1
+
+    } else {
+
+      o._body.mass = 0
+
+    }
+
+    o._body.updateSolveMassProperties()
+    o._body.updateMassProperties()
 
   }
-  
-  obj._body.type = p2.Body.DYNAMIC
 
   this.obj = obj
   this.updateSizeLines(this.obj)
@@ -394,8 +430,6 @@ BMControl.prototype.unselectedObject = function(resetOControl) {
 
   this.obj = null
   this.updateSizeLines()
-
-  this.objects.forEach(obj => obj._body.type = p2.Body.DYNAMIC)
 
   if(this.ocontrol && !this.ocontrol.enabled) {
 
@@ -431,7 +465,6 @@ BMControl.prototype.updateSizeLines = function(obj) {
     return
 
   }
-
 
   if(obj.type === 'floor') {
 
@@ -767,39 +800,21 @@ function mouseUp(e) {
 
 function updateWorld(world, obj, callback) {
 
-  world.step(1/60)
+  for(var i = 0; i < 25; i++) {
 
-  if(id) {
-
-    id--
-
-    setTimeout(e => {
-    
-      updateWorld(world, obj, callback, id)
-
-    }, 10)
-
-    return
+    world.step(1/60)
 
   }
 
-  if(obj) {
+  if(!!obj) {
 
-    if(obj.constructor === BMObject) {
+    if(Array.isArray(obj)) {
+
+      obj.forEach( o => o.update() )
+
+    } else {
 
       obj.update()
-      obj._body.velocity[0] = 0
-      obj._body.velocity[1] = 0
-
-    } else if(Array.isArray(obj)) {
-
-      obj.forEach(o => {
-
-        o.update()
-        o._body.velocity[0] = 0
-        o._body.velocity[1] = 0
-
-      })
 
     }
 
@@ -809,4 +824,5 @@ function updateWorld(world, obj, callback) {
 
 }
 
+//export
 export { BMControl }

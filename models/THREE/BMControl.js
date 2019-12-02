@@ -20,6 +20,7 @@ define(function(require) {
     this._body = new CANNON.Body({ mass: 1 })
     this._body.fixedRotation = true
     this._body.linearDamping = .999999999
+    this._body.bmobject = this
     this.updateShape()
 
     if(this.type === 'floor') 
@@ -48,6 +49,34 @@ define(function(require) {
 
     this._body.addShape(this._shape)
     this._body.updateMassProperties()
+
+    return this
+
+  }
+
+  BMObject.prototype.setBodyPosition = function(vec) {
+
+    if(this.type === 'floor') {
+
+      this._body.position.x = vec.x
+      this._body.position.z = vec.z
+
+    } else
+    if(this.type === 'wall') {
+
+      this._body.position.x = vec.x
+      this._body.position.y = vec.y
+      this._body.position.z = vec.z
+
+      if(this.wall) {
+
+        var mv = this.wall.normal.clone().multiplyScalar(this.size.z/2 + 1)
+        this._body.position.x += mv.x
+        this._body.position.z += mv.z
+
+      }
+
+    }
 
     return this
 
@@ -179,8 +208,24 @@ define(function(require) {
       // если мимо ничего не делаем (правда это анрил, но на всяк)
       if(!intersect) return false
 
-      self.obj._body.position.x = intersect.x
-      self.obj._body.position.z = intersect.z
+      // if(self.obj.wall !== wall) {
+
+        // if(self.obj.wall) {
+
+        //   self.obj.wall.removeObj(self.obj)
+
+        // }
+
+        // wall.addObj(self.obj)
+        // self.obj.wall = wall
+
+      // }
+      
+      // self.obj.setBodyPosition(intersect)
+      var len = intersect.sub(self.obj.mesh.position).toFixed().length()
+      var mv = intersect.normalize().multiplyScalar(len*10)
+      self.obj._body.velocity.x = mv.x
+      self.obj._body.velocity.z = mv.z
 
       updateWorld(self.CANNON.world, self.obj, () => {
 
@@ -205,9 +250,11 @@ define(function(require) {
 
       }
       
-      self.obj._body.position.x = pos.x
-      self.obj._body.position.y = pos.y
-      self.obj._body.position.z = pos.z
+      var len = pos.sub(self.obj.mesh.position).toFixed().length()
+      var mv = pos.normalize().multiplyScalar(len*10)
+      self.obj._body.velocity.x = mv.x
+      self.obj._body.velocity.y = mv.y
+      self.obj._body.velocity.z = mv.z
 
       updateWorld(wall.CANNON.world, self.obj, () => {
 
@@ -747,7 +794,7 @@ define(function(require) {
 
   function updateWorld(world, obj, callback) {
 
-    for(var i = 0; i < 25; i++) {
+    for(var i = 0; i < 5; i++) {
 
       world.step(1/60)
 
