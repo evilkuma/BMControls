@@ -16,69 +16,18 @@ define(function(require) {
     this.type = data.type || 'floor'
     this.parent = data.parent
 
-    this._shape
-    this._body = new CANNON.Body({ mass: 1 })
-    this._body.fixedRotation = true
-    this._body.linearDamping = .999999999
-    this._body.bmobject = this
-    this.updateShape()
-
-    if(this.type === 'floor') 
-      this.parent.CANNON.world.addBody(this._body)
+    this._poly = new SAT.Polygon(new SAT.Vector(0,0), [
+      new SAT.Vector(-this.size.x/2,-this.size.z/2),
+      new SAT.Vector( this.size.x/2,-this.size.z/2),
+      new SAT.Vector( this.size.x/2,this.size.z/2),
+      new SAT.Vector(-this.size.x/2,this.size.z/2)
+    ])
 
     if(data.position) {
 
       this.mesh.position.y = this.size.y/2
 
     }
-
-  }
-
-  BMObject.prototype.updateShape = function() {
-
-    if(this.type === 'floor') {
-
-      this._shape = new CANNON.Box(new CANNON.Vec3(this.size.x/2, 10000, this.size.z/2))
-  
-    } else
-    if(this.type === 'wall') {
-
-      this._shape = new CANNON.Box(new CANNON.Vec3(this.size.x/2, this.size.y/2, this.size.z/2))
-
-    }
-
-    this._body.addShape(this._shape)
-    this._body.updateMassProperties()
-
-    return this
-
-  }
-
-  BMObject.prototype.setBodyPosition = function(vec) {
-
-    if(this.type === 'floor') {
-
-      this._body.position.x = vec.x
-      this._body.position.z = vec.z
-
-    } else
-    if(this.type === 'wall') {
-
-      this._body.position.x = vec.x
-      this._body.position.y = vec.y
-      this._body.position.z = vec.z
-
-      if(this.wall) {
-
-        var mv = this.wall.normal.clone().multiplyScalar(this.size.z/2 + 1)
-        this._body.position.x += mv.x
-        this._body.position.z += mv.z
-
-      }
-
-    }
-
-    return this
 
   }
 
@@ -89,6 +38,9 @@ define(function(require) {
       this.mesh.position.x = vec.x
       this.mesh.position.z = vec.z
 
+      this._poly.pos.x = vec.x
+      this._poly.pos.y = vec.z
+
     } else
     if(this.type === 'wall') {
 
@@ -96,22 +48,8 @@ define(function(require) {
       this.mesh.position.y = vec.y
       this.mesh.position.z = vec.z
 
-    }
-
-    return this
-
-  }
-
-  BMObject.prototype.update = function() {
-
-    if(this.type === 'floor') {
-
-      this.setPosition(this._body.position)
-
-    } else
-    if(this.type === 'wall'){
-
-      this.setPosition(this._body.position)
+      this._poly.pos.x = vec.x
+      this._poly.pos.y = vec.y
 
     }
 
@@ -122,7 +60,6 @@ define(function(require) {
   BMObject.prototype.remove = function() {
 
     this.mesh.parent.remove(this.mesh)
-    this._body.world.remove(this._body)
     this.parent.remove(this)
 
     return this
@@ -131,7 +68,7 @@ define(function(require) {
 
   BMObject.prototype.setRotation = function(rot) {
 
-    this._body.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0), rot)
+    // TODO rotate poly
     this.mesh.rotation.y = rot
 
     return this
@@ -183,6 +120,7 @@ define(function(require) {
    * 
    * @param {BMControl} self 
    */
+  var response = new SAT.Response();
   function moveSelected(self) {
 
     // настраиваем кастер и пуляем луч в плэйн пола
@@ -204,34 +142,73 @@ define(function(require) {
 
       if(pos) self.obj.setRotation(wall.mesh.rotation.y)
 
-      var intersect = raycaster.ray.intersectPlane( self.room._plane, self.CANNON.toPosition )
+      var intersect = raycaster.ray.intersectPlane( self.room._plane, new THREE.Vector3 )
       // если мимо ничего не делаем (правда это анрил, но на всяк)
       if(!intersect) return false
 
-      // if(self.obj.wall !== wall) {
+      self.obj.setPosition(intersect)
 
-        // if(self.obj.wall) {
+      var collide = function(vec) {
 
-        //   self.obj.wall.removeObj(self.obj)
+        for(var obj of self.objects) {
 
-        // }
+          if(obj === self.obj) continue
+  
+          response.clear()
+          var collided = SAT.testPolygonPolygon(self.obj._poly, obj._poly, response)
 
-        // wall.addObj(self.obj)
-        // self.obj.wall = wall
+          if(collided) {
 
-      // }
-      
-      // self.obj.setBodyPosition(intersect)
-      var len = intersect.sub(self.obj.mesh.position).toFixed().length()
-      var mv = intersect.normalize().multiplyScalar(len*10)
-      self.obj._body.velocity.x = mv.x
-      self.obj._body.velocity.z = mv.z
+            if(vec) {
 
-      updateWorld(self.CANNON.world, self.obj, () => {
+              var signx = Math.sign(response.overlapV.x)
+              var signy = Math.sign(response.overlapV.y)
 
-        self.updateSizeLines(self.obj)
+              if(vec.x && response.overlapV.x && signx !== Math.sign(vec.x)) {
 
-      })
+                if(signx < 0) {
+
+                  response.overlapV.x = obj.size.x + self.obj.size.x + response.overlapV.x
+
+                }
+
+              }
+
+              if(vec.z && response.overlapV.y && signy !== Math.sign(vec.z)) {
+
+                if(signy < 0) {
+
+                  response.overlapV.y = obj.size.z + self.obj.size.z + response.overlapV.y
+
+                }
+
+              }
+
+            }
+  
+            vec = new THREE.Vector3(response.overlapV.x, 0, response.overlapV.y).normalize()
+
+            self.obj.mesh.position.x -= response.overlapV.x
+            self.obj.mesh.position.z -= response.overlapV.y
+            // additional offset so that there would be no intersection
+            self.obj.mesh.position.sub(vec.clone().multiplyScalar(.01))
+            // assign changes
+            self.obj.setPosition(self.obj.mesh.position)
+
+            // use recursive
+            collide(vec)
+
+            break
+  
+          }
+  
+        }
+
+      }
+
+      collide()
+
+      self.updateSizeLines(self.obj)
 
     } else if(self.obj.type === 'wall') {
 
@@ -250,17 +227,7 @@ define(function(require) {
 
       }
       
-      var len = pos.sub(self.obj.mesh.position).toFixed().length()
-      var mv = pos.normalize().multiplyScalar(len*10)
-      self.obj._body.velocity.x = mv.x
-      self.obj._body.velocity.y = mv.y
-      self.obj._body.velocity.z = mv.z
-
-      updateWorld(wall.CANNON.world, self.obj, () => {
-
-        self.updateSizeLines(self.obj)
-
-      })
+      self.obj.setPosition(pos)
 
     }
 
@@ -316,21 +283,6 @@ define(function(require) {
      */
     this.moveTimeout = null
 
-    // CANNON
-    this.CANNON = {
-
-      world: new CANNON.World,
-      // tmp
-      toPosition: new THREE.Vector3
-
-    }
-
-    this.CANNON.world.gravity.set(0, 0, 0);
-
-    // TODO (исправить) когда возле стены есть обьект
-    // второй обьект притянутый к стене
-    // прилипает к первому со стороны стены
-
     this.room = new Room(points, this)
     this.enable(true)
 
@@ -351,8 +303,6 @@ define(function(require) {
       }
 
       this.objects.push(new BMObject( Object.assign({ parent: this }, obj) ))
-
-      updateWorld(this.CANNON.world, this.objects)
 
     }
 
@@ -386,23 +336,6 @@ define(function(require) {
 
       this.ocontrol.enabled = false
       
-    }
-
-    for(var o of this.objects) {
-
-      if(o === obj) {
-
-        o._body.mass = 1
-
-      } else {
-
-        o._body.mass = 0
-
-      }
-
-      o._body.updateSolveMassProperties()
-      o._body.updateMassProperties()
-
     }
 
     this.obj = obj
@@ -789,32 +722,6 @@ define(function(require) {
       this.moveTimeout = null
 
     }
-
-  }
-
-  function updateWorld(world, obj, callback) {
-
-    for(var i = 0; i < 5; i++) {
-
-      world.step(1/60)
-
-    }
-
-    if(!!obj) {
-
-      if(Array.isArray(obj)) {
-
-        obj.forEach( o => o.update() )
-
-      } else {
-
-        obj.update()
-
-      }
-
-    }
-
-    if(callback) callback(world, obj)
 
   }
 

@@ -103,28 +103,6 @@ define(function(require) {
     // objects from this wall (from bmcontrols)
     this.objects = []
 
-    var cannonMesh = () => {
-
-      var shape = new CANNON.Box(new CANNON.Vec3(.5, 10000, .25))
-      var body = new CANNON.Body({mass: 0})
-      body.fixedRotation = true
-      body.addShape(shape)
-
-      return { body, shape }
-
-    };
-
-    this.CANNON = {
-
-      loc: cannonMesh(),
-      def: cannonMesh(),
-      world: parent.CANNON.world
-
-    }
-
-    parent.bmcontrols.CANNON.world.addBody(this.CANNON.def.body)
-    parent.CANNON.world.addBody(this.CANNON.loc.body)
-
     if(point1 && point2) {
 
       this.setFromPoints(point1, point2)
@@ -181,16 +159,11 @@ define(function(require) {
 
     var idx = this.parent._walls.indexOf(this)
     this.parent._walls.splice(idx, 1)
+
     if(this.gui) this.gui.remove()
     if(this.mesh && this.mesh.parent) this.mesh.parent.remove(this.mesh)
     if(this.mesh1 && this.mesh1.parent) this.mesh1.parent.remove(this.mesh1)
     if(this.line && this.line.parent) this.line.parent.remove(this.line)
-
-    for(var k of ['loc', 'def']) {
-
-      this.CANNON[k].body.world.removeBody(this.CANNON[k])
-
-    }
 
   }
 
@@ -553,26 +526,6 @@ define(function(require) {
 
     })
 
-    //TODO fixing cantFullLen
-
-    var body_position = this.normal.clone().multiplyScalar(-10000).add(this.position)
-
-    for(var k of ['loc', 'def']) {
-
-      var c = this.CANNON[k]
-
-      c.shape.constructor(new CANNON.Vec3(
-        ( this.l / 2 ) + ( this.cantFullLen ? 0 : 10000 ), 
-        10000, 
-        10000
-      ))
-
-      c.body.position.x = body_position.x
-      c.body.position.z = body_position.z
-      c.body.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0), -this.rot.toFixed(10))
-
-    }
-
   }
 
   Wall.prototype.ray = function(ray) {
@@ -592,7 +545,6 @@ define(function(require) {
   Wall.prototype.addObj = function(obj) {
 
     this.objects.push(obj)
-    this.parent.CANNON.world.addBody(obj._body)
     
     obj.setRotation(this.mesh.rotation.y)
 
@@ -605,7 +557,6 @@ define(function(require) {
     if(i === -1) return false
 
     this.objects.splice(i, 1)
-    this.parent.CANNON.world.removeBody(obj._body)
 
     return true
 
@@ -705,14 +656,6 @@ define(function(require) {
       this.setWalls(points)
 
     }
-
-    this.CANNON = {
-
-      world: new CANNON.World
-
-    }
-
-    this.CANNON.world.gravity.set(0,0,0)
 
   }
 
