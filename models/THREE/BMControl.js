@@ -16,7 +16,7 @@ define(function(require) {
     this.type = data.type || 'floor'
     this.parent = data.parent
 
-    this._poly = new SAT.Polygon(new SAT.Vector(0,0), [
+    this.SAT = new SAT.Polygon(new SAT.Vector(0,0), [
       new SAT.Vector(-this.size.x/2,-this.size.z/2),
       new SAT.Vector( this.size.x/2,-this.size.z/2),
       new SAT.Vector( this.size.x/2,this.size.z/2),
@@ -38,8 +38,8 @@ define(function(require) {
       this.mesh.position.x = vec.x
       this.mesh.position.z = vec.z
 
-      this._poly.pos.x = vec.x
-      this._poly.pos.y = vec.z
+      this.SAT.pos.x = vec.x
+      this.SAT.pos.y = vec.z
 
     } else
     if(this.type === 'wall') {
@@ -48,8 +48,8 @@ define(function(require) {
       this.mesh.position.y = vec.y
       this.mesh.position.z = vec.z
 
-      this._poly.pos.x = vec.x
-      this._poly.pos.y = vec.y
+      this.SAT.pos.x = vec.x
+      this.SAT.pos.y = vec.y
 
     }
 
@@ -68,8 +68,8 @@ define(function(require) {
 
   BMObject.prototype.setRotation = function(rot) {
 
-    // TODO rotate poly
     this.mesh.rotation.y = rot
+    this.SAT.setAngle(-rot)
 
     return this
 
@@ -142,20 +142,72 @@ define(function(require) {
 
       if(pos) self.obj.setRotation(wall.mesh.rotation.y)
 
-      var intersect = raycaster.ray.intersectPlane( self.room._plane, new THREE.Vector3 )
-      // если мимо ничего не делаем (правда это анрил, но на всяк)
-      if(!intersect) return false
+      var intersect = raycaster.intersectObject( self.room._floor, false )
+
+      // если мимо ничего не делаем
+      if(!intersect.length) {
+
+        if(!pos) return
+
+        intersect = pos.clone()
+        intersect.y = 0
+
+      }
+      else intersect = intersect[0].point
 
       self.obj.setPosition(intersect)
 
+      var position = self.obj.mesh.position.clone()
+
       var collide = function(vec) {
 
+        // walls
+        for(var wall of self.room._walls) {
+
+          response.clear()
+          var collided = SAT.testPolygonPolygon(self.obj.SAT, wall.SAT, response)
+  
+          if(collided) {
+
+            if(Math.sign(wall.normal.x) == Math.sign(response.overlapV.x)) {
+  
+              response.overlapV.x =-response.overlapV.x
+  
+            }
+  
+            if(Math.sign(wall.normal.z) == Math.sign(response.overlapV.y)) {
+  
+              response.overlapV.y = -response.overlapV.y
+  
+            }
+  
+            position.x -= response.overlapV.x
+            position.z -= response.overlapV.y
+
+            vec = new THREE.Vector3(-response.overlapV.x, 0, -response.overlapV.y).toFixed().normalize()
+  
+            // additional offset so that there would be no intersection
+            position.add(
+              vec.clone().multiplyScalar(.01)
+            )
+
+            self.obj.SAT.pos.x = position.x
+            self.obj.SAT.pos.y = position.z
+
+            collide(vec)
+            return
+  
+          }
+  
+        }
+
+        // objects
         for(var obj of self.objects) {
 
           if(obj === self.obj) continue
   
           response.clear()
-          var collided = SAT.testPolygonPolygon(self.obj._poly, obj._poly, response)
+          var collided = SAT.testPolygonPolygon(self.obj.SAT, obj.SAT, response)
 
           if(collided) {
 
@@ -164,41 +216,31 @@ define(function(require) {
               var signx = Math.sign(response.overlapV.x)
               var signy = Math.sign(response.overlapV.y)
 
-              if(vec.x && response.overlapV.x && signx !== Math.sign(vec.x)) {
+              if(vec.x && response.overlapV.x && signx == Math.sign(vec.x)) {
 
-                if(signx < 0) {
-
-                  response.overlapV.x = obj.size.x + self.obj.size.x + response.overlapV.x
-
-                }
+                response.overlapV.x = -response.overlapV.x
 
               }
 
-              if(vec.z && response.overlapV.y && signy !== Math.sign(vec.z)) {
+              if(vec.z && response.overlapV.y && signy == Math.sign(vec.z)) {
 
-                if(signy < 0) {
-
-                  response.overlapV.y = obj.size.z + self.obj.size.z + response.overlapV.y
-
-                }
+                response.overlapV.y = -response.overlapV.y
 
               }
 
-            }
-  
-            vec = new THREE.Vector3(response.overlapV.x, 0, response.overlapV.y).normalize()
+            } else vec = new THREE.Vector3(-response.overlapV.x, 0, -response.overlapV.y).normalize()
 
-            self.obj.mesh.position.x -= response.overlapV.x
-            self.obj.mesh.position.z -= response.overlapV.y
+            position.x -= response.overlapV.x
+            position.z -= response.overlapV.y
             // additional offset so that there would be no intersection
-            self.obj.mesh.position.sub(vec.clone().multiplyScalar(.01))
+            position.add(new THREE.Vector3(-response.overlapV.x, 0, -response.overlapV.y).normalize().multiplyScalar(.01))
             // assign changes
-            self.obj.setPosition(self.obj.mesh.position)
+            self.obj.SAT.pos.x = position.x
+            self.obj.SAT.pos.y = position.z
 
             // use recursive
             collide(vec)
-
-            break
+            return
   
           }
   
@@ -207,6 +249,8 @@ define(function(require) {
       }
 
       collide()
+
+      self.obj.setPosition(position)
 
       self.updateSizeLines(self.obj)
 
@@ -432,7 +476,7 @@ define(function(require) {
             if(!info[i] || n_v.distanceTo(obj.mesh.position) < info[i].distanceTo(obj.mesh.position)) 
               info[i] = n_v
   
-            // 1 оьект может пересекаться только с 1 стороной, потому нет смысла проходить весь цикл
+            // 1 обьект может пересекаться только с 1 стороной, потому нет смысла проходить весь цикл
             break 
   
           }
@@ -478,6 +522,8 @@ define(function(require) {
   
       for(var i = 0; i < 4; i++) {
   
+        if(!info[i]) continue
+
         var line = this.size_lines[i]
         var l = +info[i].distanceTo(o_points[i]).toFixed(2)
   

@@ -103,6 +103,11 @@ define(function(require) {
     // objects from this wall (from bmcontrols)
     this.objects = []
 
+    this.SAT = new SAT.Polygon(new SAT.Vector(0,0), [
+      new SAT.Vector(-1, 0),
+      new SAT.Vector( 1, 0)
+    ])
+
     if(point1 && point2) {
 
       this.setFromPoints(point1, point2)
@@ -525,6 +530,14 @@ define(function(require) {
       limit.mesh.scale.x = this.l
 
     })
+
+    this.SAT.points[0].x = -this._l/2
+    this.SAT.points[1].x = this._l/2
+    // this.SAT._recalc()
+    this.SAT.setAngle(-this.mesh.rotation.y)
+    this.SAT.pos.x = this.position.x
+    this.SAT.pos.y = this.position.z
+    console.log(this.SAT)
 
   }
 
