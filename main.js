@@ -90,7 +90,7 @@
 
     SCOPE.gui.add({editWalls() { rmcontrol.enable() }}, 'editWalls').name('edit walls mode enabled')
 
-    loadRoom.bind(ROOMS[7].data)()
+    loadRoom.bind(ROOMS[0].data)()
 
     // bmcontrol.events.onview = function(obj, objs) {
     //   objs.forEach(o => o.obj.mark())

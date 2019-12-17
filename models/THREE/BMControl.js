@@ -13,15 +13,26 @@ define(function(require) {
 
     this.mesh = data.obj
     this.size = box.setFromObject(data.obj).getSize(new THREE.Vector3)
+    this.realsize = this.size.clone()
     this.type = data.type || 'floor'
     this.parent = data.parent
 
-    this.SAT = new SAT.Polygon(new SAT.Vector(0,0), [
-      new SAT.Vector(-this.size.x/2,-this.size.z/2),
-      new SAT.Vector( this.size.x/2,-this.size.z/2),
-      new SAT.Vector( this.size.x/2,this.size.z/2),
-      new SAT.Vector(-this.size.x/2,this.size.z/2)
-    ])
+    this.SAT = {
+      // from xz
+      v: new SAT.Polygon(new SAT.Vector(0,0), [
+        new SAT.Vector(-this.size.x/2,-this.size.z/2),
+        new SAT.Vector( this.size.x/2,-this.size.z/2),
+        new SAT.Vector( this.size.x/2,this.size.z/2),
+        new SAT.Vector(-this.size.x/2,this.size.z/2)
+      ]),
+      // from y (x/z)
+      h: new SAT.Polygon(new SAT.Vector(0,0), [
+        new SAT.Vector(-this.size.x/2,-this.size.y/2),
+        new SAT.Vector( this.size.x/2,-this.size.y/2),
+        new SAT.Vector( this.size.x/2,this.size.y/2),
+        new SAT.Vector(-this.size.x/2,this.size.y/2)
+      ])
+    }
 
     if(data.position) {
 
@@ -36,10 +47,8 @@ define(function(require) {
     if(this.type === 'floor') {
 
       this.mesh.position.x = vec.x
+      this.mesh.position.y = this.size.y/2
       this.mesh.position.z = vec.z
-
-      this.SAT.pos.x = vec.x
-      this.SAT.pos.y = vec.z
 
     } else
     if(this.type === 'wall') {
@@ -48,12 +57,46 @@ define(function(require) {
       this.mesh.position.y = vec.y
       this.mesh.position.z = vec.z
 
-      this.SAT.pos.x = vec.x
-      this.SAT.pos.y = vec.y
+      if(this.wall) {
+
+        this.mesh.position.add(
+          this.wall.normal.clone().multiplyScalar(this.size.z/2)
+        )
+
+      }
 
     }
+    
+    this.setSAT(this.mesh.position)
 
     return this
+
+  }
+
+  BMObject.prototype.setSAT = function(vec) {
+
+    this.SAT.v.pos.x = vec.x
+    this.SAT.v.pos.y = vec.z
+
+    this.SAT.h.pos.x = new THREE.Vector2(vec.x, vec.z).rotateAround(new THREE.Vector2, this.mesh.rotation.y).x
+    this.SAT.h.pos.y = vec.y
+
+    return this
+
+  }
+
+  BMObject.prototype.setXZ = function(val, origin = new THREE.Vector3, y = this.mesh.position.y) {
+
+    // x to xz
+    var pos = new THREE.Vector2(val, 0).rotateAround(new THREE.Vector2, -this.mesh.rotation.y)
+
+    // xz to xyz
+    origin.x += +pos.x.toFixed(10)
+    origin.y = y
+    origin.z += +pos.y.toFixed(10)
+
+    // set position
+    return this.setPosition(origin)
 
   }
 
@@ -69,7 +112,9 @@ define(function(require) {
   BMObject.prototype.setRotation = function(rot) {
 
     this.mesh.rotation.y = rot
-    this.SAT.setAngle(-rot)
+    this.SAT.v.setAngle(-rot)
+    
+    _Math.calcRealSize(this.realsize.copy(this.size), this.mesh.rotation.y, 'x', 'z').abs()
 
     return this
 
@@ -159,19 +204,28 @@ define(function(require) {
 
       var position = self.obj.mesh.position.clone()
 
-      var collide = function(vec) {
+      var iter = 0
+
+      var collide = function(w, v) {
+
+        iter++
+
+        if(iter > 50) return console.warn('the most iters')
 
         // walls
         for(var wall of self.room._walls) {
 
           response.clear()
-          var collided = SAT.testPolygonPolygon(self.obj.SAT, wall.SAT, response)
+          var collided = SAT.testPolygonPolygon(self.obj.SAT.v, wall.SAT, response)
   
           if(collided) {
 
+            response.overlapV.x = +response.overlapV.x.toFixed(10)
+            response.overlapV.y = +response.overlapV.y.toFixed(10)
+
             if(Math.sign(wall.normal.x) == Math.sign(response.overlapV.x)) {
   
-              response.overlapV.x =-response.overlapV.x
+              response.overlapV.x = -response.overlapV.x
   
             }
   
@@ -181,20 +235,33 @@ define(function(require) {
   
             }
   
-            position.x -= response.overlapV.x
-            position.z -= response.overlapV.y
+            var signx = -Math.sign(response.overlapV.x)
+            var signy = -Math.sign(response.overlapV.y)
 
-            vec = new THREE.Vector3(-response.overlapV.x, 0, -response.overlapV.y).toFixed().normalize()
+            if(w) {
+
+              if(!w.x)
+                w.x = signx
+              else if(signx && w.x !== signx) console.log('fack')
+              
+              if(!w.z)
+                w.z = signy
+              else if(signy && w.z !== signy) console.log('fack')
+
+            } else w = new THREE.Vector3(signx, 0, signy)
   
+            
+            position.x += Math.abs(response.overlapV.x) * signx
+            position.z += Math.abs(response.overlapV.y) * signy
+
             // additional offset so that there would be no intersection
             position.add(
-              vec.clone().multiplyScalar(.01)
+              new THREE.Vector3(signx, 0, signy).multiplyScalar(.01)
             )
 
-            self.obj.SAT.pos.x = position.x
-            self.obj.SAT.pos.y = position.z
+            self.obj.setSAT(position)
 
-            collide(vec)
+            collide(w, v)
             return
   
           }
@@ -207,39 +274,64 @@ define(function(require) {
           if(obj === self.obj) continue
   
           response.clear()
-          var collided = SAT.testPolygonPolygon(self.obj.SAT, obj.SAT, response)
+          var collided = SAT.testPolygonPolygon(self.obj.SAT.v, obj.SAT.v, response)
 
           if(collided) {
 
-            if(vec) {
+            response.overlapV.x = +response.overlapV.x.toFixed(10)
+            response.overlapV.y = +response.overlapV.y.toFixed(10)
 
-              var signx = Math.sign(response.overlapV.x)
-              var signy = Math.sign(response.overlapV.y)
+            var signx = -Math.sign(response.overlapV.x)
+            var signy = -Math.sign(response.overlapV.y)
 
-              if(vec.x && response.overlapV.x && signx == Math.sign(vec.x)) {
+            response.overlapV.x = Math.abs(response.overlapV.x) * signx
+            response.overlapV.y = Math.abs(response.overlapV.y) * signy
 
-                response.overlapV.x = -response.overlapV.x
+            if(v) {
+
+              var signx1 = v.x
+              var signy1 = v.z
+
+              if(w) {
+
+                var _signx1 = w.x
+                var _signy1 = w.z
+
+                if(_signx1) signx1 = _signx1
+                if(_signy1) signy1 = _signy1
 
               }
 
-              if(vec.z && response.overlapV.y && signy == Math.sign(vec.z)) {
+              if(signx && signx1 && signx !== signx1) {
 
-                response.overlapV.y = -response.overlapV.y
+                response.overlapV.x =(self.obj.realsize.x + obj.realsize.x - Math.abs(response.overlapV.x)) * signx1
 
               }
 
-            } else vec = new THREE.Vector3(-response.overlapV.x, 0, -response.overlapV.y).normalize()
+              if(signy && signy1 && signy !== signy1) {
 
-            position.x -= response.overlapV.x
-            position.z -= response.overlapV.y
-            // additional offset so that there would be no intersection
-            position.add(new THREE.Vector3(-response.overlapV.x, 0, -response.overlapV.y).normalize().multiplyScalar(.01))
+                response.overlapV.y = (self.obj.realsize.z + obj.realsize.z - Math.abs(response.overlapV.y)) * signy1
+
+              }
+
+              v.x = signx1
+              v.z = signy1
+
+              if(!v.x) v.x = signx
+              if(!v.z) v.z = signy
+
+            } else v = new THREE.Vector3(signx, 0, signy)
+
+            position.x += response.overlapV.x + v.x * 0.01
+            position.z += response.overlapV.y + v.z * 0.01
+
+            if(w)
+            position.add(w.clone().multiplyScalar(.01))
             // assign changes
-            self.obj.SAT.pos.x = position.x
-            self.obj.SAT.pos.y = position.z
+            self.obj.setSAT(position)
 
             // use recursive
-            collide(vec)
+            collide(w, v)
             return
   
           }
@@ -270,8 +362,93 @@ define(function(require) {
         self.obj.wall = wall
 
       }
-      
+
       self.obj.setPosition(pos)
+
+      var iter = 0
+
+      var collide = function(v) {
+
+        iter++
+        if(iter > 50) 
+          return console.warn('the most iters')
+
+        if(!self.obj.wall) return
+
+        // проверка на выход за пределы стены и фиксирование возле края
+        if(self.obj.SAT.h.pos.x - self.obj.size.x/2 < self.obj.wall.posx - self.obj.wall.l/2) {
+          // left edge
+          self.obj.setXZ(-self.obj.wall.l/2 + self.obj.size.x/2, self.obj.wall.position.clone())
+
+          v.x = 1
+
+        } else
+        if(self.obj.SAT.h.pos.x + self.obj.size.x/2 > self.obj.wall.posx + self.obj.wall.l/2) {
+          // right edge
+          self.obj.setXZ(self.obj.wall.l/2 - self.obj.size.x/2, self.obj.wall.position.clone())
+          
+          v.x = -1
+
+        }
+
+        for(var obj of self.obj.wall.objects) {
+
+          if(obj === self.obj) continue
+
+          response.clear()
+          var collided = SAT.testPolygonPolygon(self.obj.SAT.h, obj.SAT.h, response)
+
+          if(collided) {
+
+            response.overlapV.x = +response.overlapV.x.toFixed(10)
+            response.overlapV.y = +response.overlapV.y.toFixed(10)
+
+            var signx = -Math.sign(response.overlapV.x)
+            var signy = -Math.sign(response.overlapV.y)
+
+            if(signx && v.x && signx !== v.x) {
+
+              response.overlapV.x = (self.obj.size.x + obj.size.x - Math.abs(response.overlapV.x)) * v.x
+
+            } else {
+
+              v.x = signx
+              response.overlapV.x = Math.abs(response.overlapV.x) * v.x
+
+            }
+
+            if(signy && v.y && signy !== v.y) {
+
+              response.overlapV.y = (self.obj.size.y + obj.size.y - Math.abs(response.overlapV.y)) * v.y
+
+            } else {
+
+              v.y = signy
+              response.overlapV.y = Math.abs(response.overlapV.y) * v.y
+
+            }
+
+            response.overlapV.x += 0.01 * v.x
+            response.overlapV.y += 0.01 * v.y
+
+            self.obj.setXZ(
+              self.obj.SAT.h.pos.x + response.overlapV.x, 
+              self.obj.wall.coplanarPoint(new THREE.Vector3), 
+              self.obj.SAT.h.pos.y + response.overlapV.y
+            )
+
+            collide(v)
+            return
+
+          }
+
+        }
+
+      }
+
+      collide(new THREE.Vector2)
+
+      self.updateSizeLines(self.obj)
 
     }
 
@@ -447,16 +624,14 @@ define(function(require) {
         [0, 0, 1], [0, 0, -1]    //top bottom
       ]
   
-      var size = _Math.calcRealSize(obj.size.clone(), obj.mesh.rotation.y, 'x', 'z').abs()
+      var size = obj.realsize
       var info = new Array(4)
   
       for(var o of this.objects) {
   
         if (o === obj) continue
   
-        var o_size = o.size.clone()
-  
-        if(o.mesh.rotation.y) _Math.calcRealSize(o_size, o.mesh.rotation.y, 'x', 'z').abs()
+        var o_size = o.realsize
   
         box.setFromCenterAndSize(o.mesh.position, o_size)
   

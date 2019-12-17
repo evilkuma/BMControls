@@ -537,7 +537,10 @@ define(function(require) {
     this.SAT.setAngle(-this.mesh.rotation.y)
     this.SAT.pos.x = this.position.x
     this.SAT.pos.y = this.position.z
-    console.log(this.SAT)
+
+    this.posx = new THREE.Vector2(this.position.x, this.position.z).rotateAround(new THREE.Vector2, this.mesh.rotation.y).x
+    
+    return this
 
   }
 
