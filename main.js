@@ -173,6 +173,16 @@
       
     })
 
+    SCOPE.gui.add({
+
+      i() {
+
+        bmcontrol.room.setWallTexture('./assets/textures/wall/map.jpg')
+
+      }
+
+    }, 'i').name('set wall material')
+
   }
 
 })()

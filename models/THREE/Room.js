@@ -71,15 +71,26 @@ define(function(require) {
 
     this.mesh = new THREE.Mesh(new THREE.BufferGeometry, new THREE.MeshStandardMaterial( { color: 0xffffff, roughness: 1, metalness: .4 } ))
     var vert = new Float32Array( [
-      -.5, 0, 0,
-       .5, 0, 0,
-       .5, WALL_HEIGHT, 0,
-    
-       .5, WALL_HEIGHT, 0,
       -.5, WALL_HEIGHT, 0,
-      -.5, 0, 0
+      .5, WALL_HEIGHT, 0,
+      -.5, 0, 0,
+      .5, 0, 0
     ] );
     this.mesh.geometry.addAttribute('position', new THREE.BufferAttribute(vert, 3))
+    
+    var uv = new Float32Array( [
+      0, 1,
+      1, 1,
+      0, 0,
+      1, 0
+    ] )
+    this.mesh.geometry.addAttribute('uv', new THREE.BufferAttribute(uv, 2))
+
+    var indices = new Uint32Array([
+      0, 2, 1, 2, 3, 1
+    ])
+    this.mesh.geometry.setIndex( new THREE.BufferAttribute( indices, 1 ) );
+
     this.mesh.geometry.computeVertexNormals()
 
     this.mesh1 = new THREE.Mesh(new THREE.BufferGeometry, new THREE.MeshBasicMaterial( { color: 0xffffff } ))
@@ -93,7 +104,6 @@ define(function(require) {
       -.5, 0, 0
     ] )
     this.mesh1.geometry.addAttribute('position', new THREE.BufferAttribute(vert, 3))
-    this.mesh1.geometry.computeVertexNormals()
     this.mesh1.visible = false
 
     this.line = new SizeLine({ l: this._l, w: 10 , text:'(' + caption + ')' })
@@ -539,6 +549,30 @@ define(function(require) {
     this.SAT.pos.y = this.position.z
 
     this.posx = new THREE.Vector2(this.position.x, this.position.z).rotateAround(new THREE.Vector2, this.mesh.rotation.y).x
+
+    if(this.mesh.material.map) {
+      // update uv
+      var rx = Math.ceil(this._l / this.mesh.material.map.image.width)
+      var ry = Math.ceil(WALL_HEIGHT / this.mesh.material.map.image.height)
+
+      this.mesh.material.map.wrapS = this.mesh.material.map.wrapT = THREE.RepeatWrapping
+      this.mesh.material.map.repeat.set(rx, ry)
+
+      var max_x = this._l / (this.mesh.material.map.image.width * rx)
+      var max_y = WALL_HEIGHT / (this.mesh.material.map.image.height * ry)
+
+      var uvs = this.mesh.geometry.getAttribute('uv')
+      // uv sheme (indexes)
+      // 0, 1, (0, 1)
+      // 1, 1, (2, 3)
+      // 0, 0, (4, 5)
+      // 1, 0  (6, 7)
+      uvs.array[2] = uvs.array[6] = max_x
+      uvs.array[1] = uvs.array[3] = max_y
+
+      uvs.needsUpdate = true
+
+    }
     
     return this
 
@@ -787,6 +821,32 @@ define(function(require) {
 
       wall.mesh1.visible = is
       wall.line.visible = is
+
+    }
+
+  }
+
+  Room.prototype.setWallMap = function(map) {
+
+    for(var wall of this._walls) {
+
+      wall.mesh.material.map = map.clone()
+      wall.mesh.material.map.needsUpdate = true
+
+      wall.mesh.material.color.setHex(0xffffff)
+      wall.mesh.material.needsUpdate = true
+
+      wall.update()
+
+    }
+
+  }
+
+  Room.prototype.setWallTexture = function(url) {
+
+    if(typeof url === 'string') {
+
+      new THREE.TextureLoader().load(url, map => this.setWallMap(map))
 
     }
 
