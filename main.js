@@ -173,15 +173,38 @@
       
     })
 
+    var textures = {
+
+      wall: [ 'map.jpg', 'map1.png', 'map2.jpg', 'map3.jpg', 'map4.jpg' ],
+      floor: [ 'map.jpg', 'map1.jpg', 'map2.jpg', 'map3.jpg' ]
+
+    }
+
     SCOPE.gui.add({
 
+      _i: 0,
       i() {
 
-        bmcontrol.room.setWallTexture('./assets/textures/wall/map.jpg')
+        bmcontrol.room.setWallTexture('./assets/textures/wall/' + textures.wall[this._i])
+
+        if(++this._i === textures.wall.length) this._i = 0
 
       }
 
-    }, 'i').name('set wall material')
+    }, 'i').name('change wall texture')
+    
+    SCOPE.gui.add({
+
+      _i: 0,
+      i() {
+
+        bmcontrol.room.setFloorTexture('./assets/textures/floor/' + textures.floor[this._i])
+
+        if(++this._i === textures.floor.length) this._i = 0
+
+      }
+
+    }, 'i').name('change floor texture')
 
   }
 

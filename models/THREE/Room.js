@@ -802,15 +802,68 @@ define(function(require) {
 
     geom.lineTo(wall.point2.x, -wall.point2.z)
 
+    var map = this._floor ? this._floor.material.map : false
+
     this._floor = new THREE.Mesh(
-      new THREE.ShapeGeometry(geom),
+      new THREE.ShapeBufferGeometry(geom),
       new THREE.MeshStandardMaterial( { color: 0xC04000, roughness: 1, metalness: .4 } )
     )
+
+    if(map) {
+
+      this._floor.material.map = map
+      this._floor.material.color.setHex(0xffffff)
+
+    }
+
+    this._floor.geometry.computeBoundingBox()
+
+    this.updateFloorUv()
 
     this._floor.rotation.x = -Math.PI/2
 
     this.add(this._floor)
     
+  }
+
+  Room.prototype.updateFloorUv = function() {
+
+    if(!this._floor.material.map) return
+
+    var map = this._floor.material.map
+
+    var bb = this._floor.geometry.boundingBox
+    var size = bb.getSize(new THREE.Vector3)
+
+    var rx = Math.ceil(size.x / map.image.width)
+    var ry = Math.ceil(size.y / map.image.height)
+    var w = map.image.width * rx
+    var h = map.image.height * ry
+
+    map.wrapS = map.wrapT = THREE.RepeatWrapping
+    map.repeat.set(rx, ry)
+
+    var positions = this._floor.geometry.getAttribute('position')
+    var uvs = this._floor.geometry.getAttribute('uv')
+
+    for(var i = 0; i < positions.count; i++) {
+
+      var idx = i*3
+      var uvidx = i*2
+
+      var x = positions.array[idx]
+      var y = positions.array[idx+1]
+
+      var xk = x + bb.max.x
+      var yk = y + bb.max.y
+
+      uvs.array[uvidx] = xk / w
+      uvs.array[uvidx+1] = yk / h
+
+    }
+
+    uvs.needsUpdate = true
+
   }
 
   Room.prototype.showY = function(is = !this._walls[0].mesh1.visible) {
@@ -847,6 +900,27 @@ define(function(require) {
     if(typeof url === 'string') {
 
       new THREE.TextureLoader().load(url, map => this.setWallMap(map))
+
+    }
+
+  }
+
+  Room.prototype.setFloorMap = function(map) {
+
+    this._floor.material.map = map
+
+    this._floor.material.color.setHex(0xffffff)
+    this._floor.material.needsUpdate = true
+    
+    this.updateFloorUv()
+
+  }
+
+  Room.prototype.setFloorTexture = function(url) {
+
+    if(typeof url === 'string') {
+
+      new THREE.TextureLoader().load(url, map => this.setFloorMap(map))
 
     }
 
