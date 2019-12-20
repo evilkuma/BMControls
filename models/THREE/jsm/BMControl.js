@@ -21,13 +21,15 @@ function BMObject(data) {
   this.type = data.type || 'floor'
   this.parent = data.parent
 
-  this.update()
+  this.update(data.size)
 
 }
 
-BMObject.prototype.update = function() {
+BMObject.prototype.update = function(size) {
 
-  this.size = box.setFromObject(this.mesh).getSize(new Vector3)
+  if(!size) size = box.setFromObject(this.mesh).getSize(new Vector3)
+
+  this.size = size
   this.realsize = this.size.clone()
 
   this.SAT = {
@@ -117,7 +119,7 @@ BMObject.prototype.setXZ = function(val, origin = new Vector3, y = this.mesh.pos
 
 BMObject.prototype.remove = function() {
 
-  this.mesh.parent.remove(this.mesh)
+  if(this.mesh.parent) this.mesh.parent.remove(this.mesh)
   this.parent.remove(this)
 
   return this
@@ -579,9 +581,12 @@ BMControl.prototype.remove = function() {
 
 BMControl.prototype.selectedObject = function(obj) {
 
-  if(this.ocontrol && this.ocontrol.enabled) {
+  if(this.ocontrol) {
 
-    this.ocontrol.enabled = false
+    this.ocontrol.enableZoom = true
+    this.ocontrol.enableRotate = false
+    this.ocontrol.enablePan = false
+    this.ocontrol.enableKeys = false
     
   }
 
@@ -605,9 +610,12 @@ BMControl.prototype.unselectedObject = function(resetOControl) {
   this.obj = null
   this.updateSizeLines()
 
-  if(this.ocontrol && !this.ocontrol.enabled) {
+  if(this.ocontrol) {
 
-    this.ocontrol.enabled = true
+    this.ocontrol.enableZoom = true
+    this.ocontrol.enableRotate = true
+    this.ocontrol.enablePan = true
+    this.ocontrol.enableKeys = true
     
   }
 
