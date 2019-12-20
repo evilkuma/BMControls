@@ -18,10 +18,17 @@ var box = new Box3
 function BMObject(data) {
 
   this.mesh = data.obj
-  this.size = box.setFromObject(data.obj).getSize(new Vector3)
-  this.realsize = this.size.clone()
   this.type = data.type || 'floor'
   this.parent = data.parent
+
+  this.update()
+
+}
+
+BMObject.prototype.update = function() {
+
+  this.size = box.setFromObject(this.mesh).getSize(new Vector3)
+  this.realsize = this.size.clone()
 
   this.SAT = {
     // from xz
@@ -40,11 +47,13 @@ function BMObject(data) {
     ])
   }
 
-  if(data.position) {
+  if(this.type === 'floor') {
 
     this.mesh.position.y = this.size.y/2
 
   }
+  
+  this.setPosition(this.mesh.position)
 
 }
 
@@ -189,6 +198,19 @@ function moveSelected(self) {
 
   }
 
+  if(self.obj.wall !== wall) {
+
+    if(self.obj.wall) {
+
+      self.obj.wall.removeObj(self.obj)
+
+    }
+
+    wall.addObj(self.obj)
+    self.obj.wall = wall
+
+  }
+
   if(self.obj.type === 'floor' || self.obj.type === 'full') {
 
     if(pos) self.obj.setRotation(wall.mesh.rotation.y)
@@ -274,10 +296,21 @@ function moveSelected(self) {
 
       }
 
+      var objects = self.objects.filter(obj => obj.type === 'floor' || ( !!self.obj.wall &&  self.obj.wall === obj.wall ))
+
       // objects
-      for(var obj of self.objects) {
+      for(var obj of objects) {
 
         if(obj === self.obj) continue
+
+        if(obj.type === 'wall') {
+          // проверка по высоте (наличие пересечения 2 отрезков на прямой)
+          if((
+            Math.min(self.obj.mesh.position.y + self.obj.size.y/2, obj.mesh.position.y + obj.size.y/2) -
+            Math.max(self.obj.mesh.position.y - self.obj.size.y/2, obj.mesh.position.y - obj.size.y/2)
+          ) < 0) continue
+
+        }
 
         response.clear()
         var collided = SAT.testPolygonPolygon(self.obj.SAT.v, obj.SAT.v, response)
@@ -355,19 +388,6 @@ function moveSelected(self) {
   } else if(self.obj.type === 'wall') {
 
     if(!pos) return
-
-    if(self.obj.wall !== wall) {
-
-      if(self.obj.wall) {
-
-        self.obj.wall.removeObj(self.obj)
-
-      }
-
-      wall.addObj(self.obj)
-      self.obj.wall = wall
-
-    }
 
     self.obj.setPosition(pos)
 
