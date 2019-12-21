@@ -206,6 +206,16 @@
 
     }, 'i').name('change floor texture')
 
+    SCOPE.gui.add({
+
+      func() {
+
+        bmcontrol.objects.forEach(obj => obj.findWall())
+
+      }
+
+    }, 'func')
+
   }
 
 })()

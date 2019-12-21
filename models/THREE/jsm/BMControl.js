@@ -2,6 +2,7 @@
 import { Room } from './Room'
 import { SizeLine } from './SizeLine'
 import * as _Math from './Math'
+import { _Math as THREE_MATH } from 'three/src/math/Math'
 
 import { Raycaster } from 'three/src/core/Raycaster'
 import { Ray } from 'three/src/math/Ray'
@@ -55,11 +56,11 @@ BMObject.prototype.update = function(size) {
 
   }
   
-  this.setPosition(this.mesh.position)
+  this.setPosition(this.mesh.position, true)
 
 }
 
-BMObject.prototype.setPosition = function(vec) {
+BMObject.prototype.setPosition = function(vec, flag) {
 
   if(this.type === 'floor') {
 
@@ -74,7 +75,7 @@ BMObject.prototype.setPosition = function(vec) {
     this.mesh.position.y = vec.y
     this.mesh.position.z = vec.z
 
-    if(this.wall) {
+    if(this.wall && !flag) {
 
       this.mesh.position.add(
         this.wall.normal.clone().multiplyScalar(this.size.z/2)
@@ -134,6 +135,37 @@ BMObject.prototype.setRotation = function(rot) {
   _Math.calcRealSize(this.realsize.copy(this.size), this.mesh.rotation.y, 'x', 'z').abs()
 
   return this
+
+}
+
+BMObject.prototype.findWall = function() {
+
+  var rot = +THREE_MATH.euclideanModulo(+this.mesh.rotation.y.toFixed(10), 2* Math.PI).toFixed(10)
+  var res, mlen
+
+  this.parent.room._walls.forEach(wall => {
+
+    var wrot = +THREE_MATH.euclideanModulo(+wall.mesh.rotation.y.toFixed(10), 2* Math.PI).toFixed(10)
+
+    if(rot === wrot) {
+
+      var len = wall.distanceToPoint(this.mesh.position)
+
+      if(!mlen || len < mlen) {
+
+        res = wall
+        mlen = len
+
+      }
+
+    }
+
+  })
+
+  this.wall = res
+  res.objects.push(this)
+
+  return res
 
 }
 
@@ -200,7 +232,7 @@ function moveSelected(self) {
 
   }
 
-  if(self.obj.wall !== wall) {
+  if(!!pos && self.obj.wall !== wall) {
 
     if(self.obj.wall) {
 
@@ -539,6 +571,8 @@ function BMControl({ scene, points = [], dom = document.body, ocontrol } = {}) {
 
 BMControl.prototype.add = function() {
 
+  var res = []
+
   for ( var i = 0; i < arguments.length; i ++ ) {
 
     var info = arguments[i]
@@ -551,9 +585,14 @@ BMControl.prototype.add = function() {
       
     }
 
-    this.objects.push(new BMObject( Object.assign({ parent: this }, obj) ))
+    var bmobj = new BMObject( Object.assign({ parent: this }, obj) )
+
+    this.objects.push(bmobj)
+    res.push(bmobj)
 
   }
+
+  return res
 
 }
 

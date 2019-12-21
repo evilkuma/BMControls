@@ -21,7 +21,7 @@ define(function(require) {
 
   BMObject.prototype.update = function(size) {
 
-    if(!size) size = box.setFromObject(this.mesh).getSize(new Vector3)
+    if(!size) size = box.setFromObject(this.mesh).getSize(new THREE.Vector3)
   
     this.size = size
     this.realsize = this.size.clone()
@@ -49,11 +49,11 @@ define(function(require) {
 
     }
 
-    this.setPosition(this.mesh.position)
+    this.setPosition(this.mesh.position, true)
 
   }
 
-  BMObject.prototype.setPosition = function(vec) {
+  BMObject.prototype.setPosition = function(vec, flag) {
 
     if(this.type === 'floor') {
 
@@ -68,7 +68,7 @@ define(function(require) {
       this.mesh.position.y = vec.y
       this.mesh.position.z = vec.z
 
-      if(this.wall) {
+      if(this.wall && !flag) {
 
         this.mesh.position.add(
           this.wall.normal.clone().multiplyScalar(this.size.z/2)
@@ -128,6 +128,37 @@ define(function(require) {
     _Math.calcRealSize(this.realsize.copy(this.size), this.mesh.rotation.y, 'x', 'z').abs()
 
     return this
+
+  }
+
+  BMObject.prototype.findWall = function() {
+
+    var rot = +THREE.Math.euclideanModulo(+this.mesh.rotation.y.toFixed(10), 2* Math.PI).toFixed(10)
+    var res, mlen
+
+    this.parent.room._walls.forEach(wall => {
+
+      var wrot = +THREE.Math.euclideanModulo(+wall.mesh.rotation.y.toFixed(10), 2* Math.PI).toFixed(10)
+
+      if(rot === wrot) {
+
+        var len = wall.distanceToPoint(this.mesh.position)
+
+        if(!mlen || len < mlen) {
+
+          res = wall
+          mlen = len
+
+        }
+
+      }
+
+    })
+
+    this.wall = res
+    res.objects.push(this)
+
+    return res
 
   }
 
@@ -194,7 +225,7 @@ define(function(require) {
 
     }
 
-    if(self.obj.wall !== wall) {
+    if(!!pos && self.obj.wall !== wall) {
 
       if(self.obj.wall) {
 
@@ -533,6 +564,8 @@ define(function(require) {
 
   BMControl.prototype.add = function() {
 
+    var res = []
+
     for ( var i = 0; i < arguments.length; i ++ ) {
 
       var info = arguments[i]
@@ -545,9 +578,14 @@ define(function(require) {
         
       }
 
-      this.objects.push(new BMObject( Object.assign({ parent: this }, obj) ))
+      var bmobj = new BMObject( Object.assign({ parent: this }, obj) )
+
+      this.objects.push(bmobj)
+      res.push(bmobj)
 
     }
+
+    return res
 
   }
 
