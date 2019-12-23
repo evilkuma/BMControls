@@ -417,6 +417,14 @@ define(function(require) {
         if(!self.obj.wall) return
 
         // проверка на выход за пределы стены и фиксирование возле края
+        if(self.obj.SAT.h.pos.y - self.obj.size.y/2 < 0) {
+          // floor
+          pos.y = self.obj.size.y/2
+          self.obj.setPosition(pos)
+
+          v.y = 1
+
+        }
         if(self.obj.SAT.h.pos.x - self.obj.size.x/2 < self.obj.wall.posx - self.obj.wall.l/2) {
           // left edge
           self.obj.setXZ(-self.obj.wall.l/2 + self.obj.size.x/2, self.obj.wall.position.clone())
