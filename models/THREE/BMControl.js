@@ -270,28 +270,15 @@ define(function(require) {
         // walls
         for(var wall of self.room._walls) {
 
-          response.clear()
-          var collided = SAT.testPolygonPolygon(self.obj.SAT.v, wall.SAT, response)
+          var collided = SAT.testPolygonPolygon(self.obj.SAT.v, wall.SAT)
   
           if(collided) {
 
-            response.overlapV.x = +response.overlapV.x.toFixed(10)
-            response.overlapV.y = +response.overlapV.y.toFixed(10)
+            var point = wall.projectPoint(self.obj.mesh.position, new THREE.Vector3)
+                            .add(self.obj.realsize.clone().divideScalar(2).multiply(wall.normal))
 
-            if(Math.sign(wall.normal.x) == Math.sign(response.overlapV.x)) {
-  
-              response.overlapV.x = -response.overlapV.x
-  
-            }
-  
-            if(Math.sign(wall.normal.z) == Math.sign(response.overlapV.y)) {
-  
-              response.overlapV.y = -response.overlapV.y
-  
-            }
-  
-            var signx = -Math.sign(response.overlapV.x)
-            var signy = -Math.sign(response.overlapV.y)
+            var signx = Math.sign(+wall.normal.x.toFixed(10))
+            var signy = Math.sign(+wall.normal.z.toFixed(10))
 
             if(w) {
 
@@ -305,9 +292,10 @@ define(function(require) {
 
             } else w = new THREE.Vector3(signx, 0, signy)
   
-            
-            position.x += Math.abs(response.overlapV.x) * signx
-            position.z += Math.abs(response.overlapV.y) * signy
+            if(signx)
+            position.x = point.x
+            if(signy)
+            position.z = point.z
 
             // additional offset so that there would be no intersection
             position.add(
